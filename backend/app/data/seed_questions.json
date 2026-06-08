@@ -1,0 +1,422 @@
+[
+  {
+    "category": "Python",
+    "difficulty": "初级",
+    "question": "list 和 tuple 有什么区别？",
+    "standard_answer": "list 是可变序列，tuple 是不可变序列。list 适合需要动态增删改的数据，tuple 适合固定结构或不希望被修改的数据。",
+    "rubric": ["是否说明可变与不可变", "是否说明使用场景", "是否能举例"]
+  },
+  {
+    "category": "Python",
+    "difficulty": "初级",
+    "question": "Python 中 dict 的特点是什么？",
+    "standard_answer": "dict 是键值对结构，基于哈希表实现，查询效率通常较高。键必须是可哈希对象，适合通过 key 快速查找 value。",
+    "rubric": ["是否说明键值对", "是否提到哈希或快速查找", "是否说明 key 的要求"]
+  },
+  {
+    "category": "Python",
+    "difficulty": "中级",
+    "question": "什么是 Python 的 GIL？它会对多线程程序产生什么影响？",
+    "standard_answer": "GIL 是 CPython 解释器中的全局解释器锁，同一时刻通常只允许一个线程执行 Python 字节码。它会限制 CPU 密集型多线程程序的并行效率，但对 I/O 密集型任务影响较小，CPU 密集型场景可考虑多进程、C 扩展或异步加进程池。",
+    "rubric": ["是否说明 GIL 是全局解释器锁", "是否区分 CPU 密集和 I/O 密集", "是否给出多进程等替代方案"]
+  },
+  {
+    "category": "Python",
+    "difficulty": "中级",
+    "question": "Python 装饰器的作用是什么？请举一个常见使用场景。",
+    "standard_answer": "装饰器本质上是接收函数并返回新函数的高阶函数，用于在不修改原函数代码的情况下增强行为。常见场景包括日志记录、权限校验、性能统计、缓存、重试和事务包装。",
+    "rubric": ["是否说明高阶函数或包装函数", "是否说明不修改原函数即可增强行为", "是否能举出日志、鉴权、缓存等场景"]
+  },
+  {
+    "category": "Python",
+    "difficulty": "高级",
+    "question": "生成器和迭代器有什么关系？在处理大数据时为什么生成器更节省内存？",
+    "standard_answer": "迭代器实现了迭代协议，可以通过 __next__ 逐个返回值。生成器是创建迭代器的一种便捷方式，使用 yield 暂停和恢复执行。处理大数据时，生成器按需产生数据，不需要一次性把所有结果放入内存，因此更适合流式读取和惰性计算。",
+    "rubric": ["是否说明迭代协议", "是否说明 yield 暂停和恢复", "是否说明按需生成节省内存"]
+  },
+  {
+    "category": "Python",
+    "difficulty": "高级",
+    "question": "在 Python 项目中如何定位和优化性能瓶颈？",
+    "standard_answer": "应先用 profiling 工具定位瓶颈，例如 cProfile、line_profiler 或日志埋点，避免凭感觉优化。然后根据瓶颈类型选择方案：减少重复计算、优化算法复杂度、使用缓存、批量 I/O、数据库索引、异步处理、多进程或调用高性能库。优化后要用基准测试验证效果。",
+    "rubric": ["是否强调先测量再优化", "是否能区分算法、I/O、数据库等瓶颈", "是否说明优化后需要验证"]
+  },
+  {
+    "category": "FastAPI",
+    "difficulty": "初级",
+    "question": "FastAPI 相比 Flask 有哪些特点？",
+    "standard_answer": "FastAPI 支持异步、自动生成 API 文档、基于类型注解进行参数校验，性能较好，适合构建现代 API 服务。",
+    "rubric": ["是否提到异步", "是否提到自动文档", "是否提到类型注解和校验"]
+  },
+  {
+    "category": "FastAPI",
+    "difficulty": "初级",
+    "question": "FastAPI 中 Depends 的作用是什么？",
+    "standard_answer": "Depends 用于声明依赖注入，可以把数据库连接、鉴权逻辑、公共参数等复用逻辑注入到接口函数中。",
+    "rubric": ["是否说明依赖注入", "是否提到复用逻辑", "是否能举出数据库或鉴权示例"]
+  },
+  {
+    "category": "FastAPI",
+    "difficulty": "中级",
+    "question": "FastAPI 中如何处理请求体验证和响应模型？",
+    "standard_answer": "FastAPI 通常使用 Pydantic 模型定义请求体和响应结构。请求进入接口前会自动校验类型、必填字段和约束，校验失败返回 422。响应模型可以通过 response_model 控制输出字段、过滤敏感信息并生成 OpenAPI 文档。",
+    "rubric": ["是否提到 Pydantic 模型", "是否说明自动校验和 422", "是否说明 response_model 的作用"]
+  },
+  {
+    "category": "FastAPI",
+    "difficulty": "中级",
+    "question": "FastAPI 中同步接口和异步接口如何选择？",
+    "standard_answer": "如果接口主要执行异步 I/O，例如异步数据库客户端、HTTP 调用或文件操作，可以使用 async def。若使用阻塞式库，例如普通 SQLAlchemy Session 或 CPU 密集计算，直接写 async 可能阻塞事件循环，应使用普通 def、线程池或替换为异步库。",
+    "rubric": ["是否区分异步 I/O 和阻塞操作", "是否说明阻塞事件循环风险", "是否提到普通 def 或线程池等方案"]
+  },
+  {
+    "category": "FastAPI",
+    "difficulty": "高级",
+    "question": "FastAPI 项目中如何设计统一异常处理和错误响应？",
+    "standard_answer": "可以通过 HTTPException 表达业务错误，通过 exception_handler 注册统一异常处理器，定义一致的错误码、message、request_id 和可选 details。对参数校验、业务异常、系统异常分层处理，同时记录日志，避免把内部堆栈或敏感信息返回给客户端。",
+    "rubric": ["是否提到 exception_handler", "是否说明统一错误格式", "是否提到日志和敏感信息保护"]
+  },
+  {
+    "category": "FastAPI",
+    "difficulty": "高级",
+    "question": "如何在 FastAPI 中设计可测试的数据库依赖？",
+    "standard_answer": "应把数据库 Session 封装成依赖函数，例如 get_db，并在接口中通过 Depends 注入。测试时使用 app.dependency_overrides 替换为测试数据库会话，通常配合临时 SQLite 或测试库，保证测试隔离、可重复，并在测试后清理数据。",
+    "rubric": ["是否说明 get_db 依赖注入", "是否提到 dependency_overrides", "是否说明测试隔离和清理"]
+  },
+  {
+    "category": "MySQL",
+    "difficulty": "初级",
+    "question": "什么是数据库索引？为什么可以提升查询速度？",
+    "standard_answer": "索引是一种帮助数据库快速定位数据的数据结构，常见实现是 B+ 树。它可以减少全表扫描，提高查询效率。",
+    "rubric": ["是否说明索引作用", "是否提到数据结构", "是否理解减少扫描范围"]
+  },
+  {
+    "category": "MySQL",
+    "difficulty": "初级",
+    "question": "什么是事务？事务的 ACID 指什么？",
+    "standard_answer": "事务是一组要么全部成功、要么全部失败的数据库操作。ACID 指原子性、一致性、隔离性和持久性。",
+    "rubric": ["是否说明事务整体成功或失败", "是否说出 ACID 四项", "是否理解每项含义"]
+  },
+  {
+    "category": "MySQL",
+    "difficulty": "中级",
+    "question": "什么情况下索引可能失效？",
+    "standard_answer": "索引可能因为在索引列上使用函数或表达式、隐式类型转换、最左前缀不满足、前导模糊匹配、低选择性字段、使用不合适的 OR 条件等原因无法有效使用。应结合 EXPLAIN 查看执行计划。",
+    "rubric": ["是否列出常见失效原因", "是否提到最左前缀或隐式转换", "是否提到 EXPLAIN"]
+  },
+  {
+    "category": "MySQL",
+    "difficulty": "中级",
+    "question": "MySQL 的 undo log、redo log 和 binlog 分别有什么作用？",
+    "standard_answer": "undo log 用于事务回滚和 MVCC 版本读取；redo log 是 InnoDB 的物理日志，用于崩溃恢复，保证持久性；binlog 是 MySQL Server 层的逻辑日志，常用于主从复制和按时间点恢复。",
+    "rubric": ["是否说明 undo log 回滚和 MVCC", "是否说明 redo log 崩溃恢复", "是否说明 binlog 复制和恢复"]
+  },
+  {
+    "category": "MySQL",
+    "difficulty": "高级",
+    "question": "如何分析一条慢 SQL？",
+    "standard_answer": "先通过慢查询日志或监控定位 SQL，再用 EXPLAIN 或 EXPLAIN ANALYZE 查看访问类型、索引选择、扫描行数、回表、排序和临时表情况。结合表结构、索引、数据分布和业务过滤条件判断问题，可能通过新增或调整索引、改写 SQL、分页优化、减少回表或拆分查询解决。",
+    "rubric": ["是否提到慢查询日志或监控", "是否说明 EXPLAIN 关键字段", "是否能提出索引和 SQL 改写方案"]
+  },
+  {
+    "category": "MySQL",
+    "difficulty": "高级",
+    "question": "什么是 MVCC？它如何提升并发性能？",
+    "standard_answer": "MVCC 是多版本并发控制，通过为数据保留多个版本，让读操作在一定隔离级别下读取一致性快照，避免普通读和写互相阻塞。InnoDB 通过隐藏字段、undo log 和 read view 实现 MVCC，但当前读、锁定读和不同隔离级别下行为会不同。",
+    "rubric": ["是否说明多版本并发控制", "是否说明一致性读减少阻塞", "是否提到 undo log、read view 或隔离级别"]
+  },
+  {
+    "category": "Redis",
+    "difficulty": "初级",
+    "question": "Redis 常见数据结构有哪些？",
+    "standard_answer": "Redis 常见数据结构包括 string、hash、list、set、sorted set 等，不同结构适合缓存、计数、排行榜、集合运算等场景。",
+    "rubric": ["是否列出常见结构", "是否能说明使用场景", "是否理解 Redis 不只是字符串缓存"]
+  },
+  {
+    "category": "Redis",
+    "difficulty": "初级",
+    "question": "Redis 为什么适合做缓存？",
+    "standard_answer": "Redis 基于内存读写，速度快，支持过期时间和多种数据结构，可以减少数据库压力并提升系统响应速度。",
+    "rubric": ["是否提到内存读写", "是否提到过期时间", "是否说明减少数据库压力"]
+  },
+  {
+    "category": "Redis",
+    "difficulty": "中级",
+    "question": "什么是缓存穿透、缓存击穿和缓存雪崩？",
+    "standard_answer": "缓存穿透是查询不存在的数据导致请求直接打到数据库，可用空值缓存、布隆过滤器解决；缓存击穿是热点 key 失效瞬间大量请求打到数据库，可用互斥锁、逻辑过期解决；缓存雪崩是大量 key 同时失效或 Redis 故障，可用过期时间随机化、多级缓存和限流降级。",
+    "rubric": ["是否区分三种问题", "是否给出对应解决方案", "是否提到热点 key 或大量 key 同时失效"]
+  },
+  {
+    "category": "Redis",
+    "difficulty": "中级",
+    "question": "Redis 的过期删除策略和内存淘汰策略有什么区别？",
+    "standard_answer": "过期删除策略处理设置了 TTL 的 key，Redis 通过惰性删除和定期删除清理过期 key。内存淘汰策略是在内存达到 maxmemory 后，根据 allkeys-lru、volatile-lru、allkeys-random、noeviction 等策略淘汰数据。",
+    "rubric": ["是否区分 TTL 过期和内存满淘汰", "是否说明惰性删除和定期删除", "是否举出淘汰策略"]
+  },
+  {
+    "category": "Redis",
+    "difficulty": "高级",
+    "question": "如何用 Redis 实现分布式锁？需要注意哪些问题？",
+    "standard_answer": "常见做法是使用 SET key value NX EX 原子地加锁，value 使用唯一标识，释放锁时用 Lua 脚本校验 value 后删除，避免误删别人的锁。需要注意锁过期时间、业务超时、续期、可重入、主从切换和 Redlock 的适用性。",
+    "rubric": ["是否说明 SET NX EX", "是否说明唯一 value 和 Lua 释放", "是否提到过期、续期或主从问题"]
+  },
+  {
+    "category": "Redis",
+    "difficulty": "高级",
+    "question": "Redis 持久化 RDB 和 AOF 有什么区别？",
+    "standard_answer": "RDB 是按时间点生成数据快照，恢复速度快、文件紧凑，但可能丢失最近数据；AOF 记录写命令，通常数据更完整，但文件更大，需要重写压缩。实际可以结合使用，根据恢复速度、数据安全和性能开销权衡。",
+    "rubric": ["是否说明 RDB 快照", "是否说明 AOF 记录命令", "是否能分析数据丢失、恢复和性能权衡"]
+  },
+  {
+    "category": "HTTP",
+    "difficulty": "初级",
+    "question": "GET 和 POST 有什么区别？",
+    "standard_answer": "GET 通常用于获取资源，参数常放在 URL 中，适合幂等查询；POST 通常用于提交数据，数据放在请求体中，常用于创建或修改资源。",
+    "rubric": ["是否说明用途差异", "是否提到 URL 和请求体", "是否理解幂等性"]
+  },
+  {
+    "category": "HTTP",
+    "difficulty": "初级",
+    "question": "常见 HTTP 状态码 200、400、404、500 分别表示什么？",
+    "standard_answer": "200 表示请求成功，400 表示客户端请求有误，404 表示资源不存在，500 表示服务器内部错误。",
+    "rubric": ["是否说出 200", "是否说出 400 和 404", "是否说出 500"]
+  },
+  {
+    "category": "HTTP",
+    "difficulty": "中级",
+    "question": "HTTP 缓存中 Cache-Control、ETag 和 Last-Modified 分别有什么作用？",
+    "standard_answer": "Cache-Control 用于控制缓存策略，例如 max-age、no-cache、no-store。ETag 是资源内容标识，客户端可用 If-None-Match 做协商缓存。Last-Modified 表示资源最后修改时间，可配合 If-Modified-Since 判断是否返回 304。",
+    "rubric": ["是否说明 Cache-Control", "是否说明 ETag 和 If-None-Match", "是否说明 Last-Modified 和 304"]
+  },
+  {
+    "category": "HTTP",
+    "difficulty": "中级",
+    "question": "HTTPS 相比 HTTP 多了什么？TLS 握手大致做了什么？",
+    "standard_answer": "HTTPS 在 HTTP 之上加入 TLS，提供加密传输、身份认证和完整性保护。TLS 握手会协商协议版本和加密套件，验证服务端证书，并通过非对称加密或密钥交换生成会话密钥，后续使用对称加密传输数据。",
+    "rubric": ["是否说明加密、认证和完整性", "是否提到证书验证", "是否说明会话密钥和对称加密"]
+  },
+  {
+    "category": "HTTP",
+    "difficulty": "高级",
+    "question": "HTTP/1.1、HTTP/2 和 HTTP/3 的主要区别是什么？",
+    "standard_answer": "HTTP/1.1 支持长连接但存在队头阻塞等问题；HTTP/2 引入二进制分帧、多路复用、头部压缩，提升并发性能，但 TCP 层仍可能队头阻塞；HTTP/3 基于 QUIC 和 UDP，改善连接建立和丢包场景下的阻塞问题。",
+    "rubric": ["是否说明 HTTP/1.1 长连接和限制", "是否说明 HTTP/2 多路复用和头部压缩", "是否说明 HTTP/3 基于 QUIC"]
+  },
+  {
+    "category": "HTTP",
+    "difficulty": "高级",
+    "question": "什么是幂等性？在 API 设计中如何保证幂等？",
+    "standard_answer": "幂等性指同一请求执行一次和多次对资源最终状态影响一致。API 可通过合理使用 HTTP 方法、唯一请求号、幂等键、数据库唯一约束、状态机校验和去重表保证幂等，常用于支付、订单创建和重试场景。",
+    "rubric": ["是否定义幂等性", "是否给出幂等键或唯一约束方案", "是否说明订单或支付等重试场景"]
+  },
+  {
+    "category": "Git",
+    "difficulty": "初级",
+    "question": "git commit 和 git push 有什么区别？",
+    "standard_answer": "git commit 是把本地暂存区的改动保存成本地版本记录，git push 是把本地提交推送到远程仓库。",
+    "rubric": ["是否区分本地和远程", "是否说明 commit 保存版本", "是否说明 push 推送远程"]
+  },
+  {
+    "category": "Git",
+    "difficulty": "初级",
+    "question": "git branch 的作用是什么？为什么开发新功能常用分支？",
+    "standard_answer": "git branch 用于创建和管理分支。新功能使用独立分支可以隔离开发过程，避免影响 main 分支的稳定性，便于评审和合并。",
+    "rubric": ["是否说明分支作用", "是否提到隔离开发", "是否提到保护主分支"]
+  },
+  {
+    "category": "Git",
+    "difficulty": "中级",
+    "question": "git merge 和 git rebase 有什么区别？",
+    "standard_answer": "merge 会把两个分支历史合并，通常产生一个合并提交，保留真实分支历史；rebase 会把当前分支提交重新放到目标分支之后，让历史更线性。共享分支上随意 rebase 可能改写历史并影响他人。",
+    "rubric": ["是否说明 merge 保留历史", "是否说明 rebase 线性化历史", "是否提到共享分支风险"]
+  },
+  {
+    "category": "Git",
+    "difficulty": "中级",
+    "question": "发生代码冲突时你会如何处理？",
+    "standard_answer": "先确认冲突文件和冲突区域，理解双方改动意图，再手动合并保留正确逻辑。解决后运行测试或本地验证，再 git add 标记已解决并继续 merge 或 rebase。必要时与相关开发者确认业务意图。",
+    "rubric": ["是否说明理解双方改动", "是否说明手动合并和标记解决", "是否提到测试或沟通"]
+  },
+  {
+    "category": "Git",
+    "difficulty": "高级",
+    "question": "git reset、git revert 和 git checkout/restore 在回退代码时有什么区别？",
+    "standard_answer": "reset 会移动分支指针，可能改变提交历史，适合本地未共享提交；revert 会新增一个反向提交，不改写历史，适合已推送提交；checkout 或 restore 常用于恢复工作区或切换文件版本。选择时要考虑是否影响他人历史。",
+    "rubric": ["是否说明 reset 改写历史", "是否说明 revert 新增反向提交", "是否说明适用场景和协作风险"]
+  },
+  {
+    "category": "Git",
+    "difficulty": "高级",
+    "question": "如何设计一个较规范的 Git 工作流？",
+    "standard_answer": "可以基于 main 或 master 保持稳定，功能从独立 feature 分支开发，通过 PR 评审、自动测试和 CI 检查后合并。提交应粒度清晰、信息明确，发布可用 tag 标记版本，紧急修复走 hotfix 分支或直接从稳定分支派生。",
+    "rubric": ["是否说明稳定主分支", "是否说明 feature 分支和 PR", "是否提到测试、tag 或 hotfix"]
+  },
+  {
+    "category": "Linux",
+    "difficulty": "初级",
+    "question": "Linux 中 ps、grep、kill 分别常用来做什么？",
+    "standard_answer": "ps 用于查看进程，grep 用于按关键字过滤文本或命令输出，kill 用于向进程发送信号，常见场景是终止进程。",
+    "rubric": ["是否说明 ps", "是否说明 grep", "是否说明 kill"]
+  },
+  {
+    "category": "Linux",
+    "difficulty": "初级",
+    "question": "相对路径和绝对路径有什么区别？",
+    "standard_answer": "绝对路径从根目录开始描述文件位置，例如 /home/user/app；相对路径基于当前工作目录描述位置，例如 ./app 或 ../logs。",
+    "rubric": ["是否说明根目录开始", "是否说明当前目录基准", "是否能举例"]
+  },
+  {
+    "category": "Linux",
+    "difficulty": "中级",
+    "question": "如何排查 Linux 服务器 CPU 或内存占用过高？",
+    "standard_answer": "可以先用 top 或 htop 查看整体负载和高占用进程，再用 ps、pidstat、free、vmstat、dmesg 等命令定位 CPU、内存、I/O 或 OOM 问题。确认进程后结合日志、线程堆栈或应用监控判断原因，再考虑扩容、限流、修复代码或重启。",
+    "rubric": ["是否提到 top/htop/ps 等命令", "是否区分 CPU、内存、I/O", "是否说明结合日志和监控定位原因"]
+  },
+  {
+    "category": "Linux",
+    "difficulty": "中级",
+    "question": "Linux 文件权限 rwx 分别表示什么？chmod 755 又是什么意思？",
+    "standard_answer": "r 表示读，w 表示写，x 表示执行或进入目录。权限分为 owner、group、others 三组。chmod 755 表示拥有者 7 即读写执行，组用户和其他用户 5 即读和执行。",
+    "rubric": ["是否说明 rwx 含义", "是否说明三组权限", "是否解释 755"]
+  },
+  {
+    "category": "Linux",
+    "difficulty": "高级",
+    "question": "如何排查线上服务端口无法访问的问题？",
+    "standard_answer": "先确认服务进程是否运行，再用 ss 或 netstat 查看端口监听和绑定地址，检查防火墙、安全组、容器端口映射、反向代理配置和 DNS。还可用 curl、telnet、nc 从本机和远端分别测试，结合日志判断是服务、网络还是代理层问题。",
+    "rubric": ["是否检查进程和端口监听", "是否检查防火墙、安全组或端口映射", "是否说明本机和远端分层测试"]
+  },
+  {
+    "category": "Linux",
+    "difficulty": "高级",
+    "question": "软链接和硬链接有什么区别？",
+    "standard_answer": "硬链接指向同一个 inode，多个文件名共享同一份数据，不能跨文件系统且通常不能链接目录；软链接是一个独立文件，内容指向目标路径，可以跨文件系统，但目标删除后会变成悬挂链接。",
+    "rubric": ["是否说明 inode", "是否说明跨文件系统差异", "是否说明目标删除后的行为"]
+  },
+  {
+    "category": "Docker",
+    "difficulty": "初级",
+    "question": "Docker 镜像和容器有什么区别？",
+    "standard_answer": "镜像是只读的应用打包模板，包含运行环境和代码；容器是镜像运行起来后的实例，可以启动、停止和删除。",
+    "rubric": ["是否说明镜像是模板", "是否说明容器是运行实例", "是否能说明二者关系"]
+  },
+  {
+    "category": "Docker",
+    "difficulty": "初级",
+    "question": "Dockerfile 的作用是什么？",
+    "standard_answer": "Dockerfile 是构建 Docker 镜像的说明文件，通过 FROM、COPY、RUN、CMD 等指令描述基础镜像、依赖安装、文件复制和启动命令。",
+    "rubric": ["是否说明构建镜像", "是否提到常见指令", "是否说明启动命令或依赖安装"]
+  },
+  {
+    "category": "Docker",
+    "difficulty": "中级",
+    "question": "Docker 中 COPY 和 ADD 有什么区别？",
+    "standard_answer": "COPY 用于把本地文件复制到镜像中，语义简单清晰；ADD 除了复制，还支持自动解压本地 tar 文件和从 URL 获取资源。通常推荐优先使用 COPY，只有确实需要 ADD 特性时再使用 ADD。",
+    "rubric": ["是否说明 COPY 复制文件", "是否说明 ADD 额外能力", "是否说明优先使用 COPY"]
+  },
+  {
+    "category": "Docker",
+    "difficulty": "中级",
+    "question": "如何减小 Docker 镜像体积？",
+    "standard_answer": "可以选择更小的基础镜像，合并或清理构建层，删除缓存和临时文件，使用 .dockerignore 排除无关文件，采用多阶段构建只保留运行所需产物，并避免把密钥和开发依赖打进最终镜像。",
+    "rubric": ["是否提到小基础镜像", "是否提到 .dockerignore 或清理缓存", "是否提到多阶段构建"]
+  },
+  {
+    "category": "Docker",
+    "difficulty": "高级",
+    "question": "Docker 容器中的数据如何持久化？volume 和 bind mount 有什么区别？",
+    "standard_answer": "容器本身是可删除的，持久化通常使用 volume 或 bind mount。volume 由 Docker 管理，适合数据库等持久数据；bind mount 把宿主机指定路径挂载进容器，便于开发调试但依赖宿主机目录结构和权限。",
+    "rubric": ["是否说明容器删除会丢临时数据", "是否说明 volume 由 Docker 管理", "是否说明 bind mount 依赖宿主机路径"]
+  },
+  {
+    "category": "Docker",
+    "difficulty": "高级",
+    "question": "Docker Compose 适合解决什么问题？",
+    "standard_answer": "Docker Compose 用于用一个 YAML 文件定义和编排多个容器服务，例如 Web、数据库、Redis 和消息队列。它可以管理服务依赖、网络、卷、环境变量和端口映射，适合本地开发、集成测试和小规模部署。",
+    "rubric": ["是否说明多容器编排", "是否提到网络、卷、环境变量或依赖", "是否说明适用场景"]
+  },
+  {
+    "category": "算法",
+    "difficulty": "初级",
+    "question": "数组和链表在查询和插入删除上的区别是什么？",
+    "standard_answer": "数组支持按下标快速访问，但中间插入删除可能需要移动元素；链表访问某个位置通常需要遍历，但在已知节点位置时插入删除更方便。",
+    "rubric": ["是否说明数组随机访问", "是否说明数组移动元素", "是否说明链表插入删除特点"]
+  },
+  {
+    "category": "算法",
+    "difficulty": "初级",
+    "question": "什么是时间复杂度？O(n) 和 O(log n) 有什么区别？",
+    "standard_answer": "时间复杂度描述算法运行时间随输入规模增长的趋势。O(n) 通常表示随数据量线性增长，O(log n) 增长更慢，常见于二分查找等场景。",
+    "rubric": ["是否说明增长趋势", "是否说明 O(n)", "是否说明 O(log n) 或二分查找"]
+  },
+  {
+    "category": "算法",
+    "difficulty": "中级",
+    "question": "二分查找适用什么条件？常见边界问题有哪些？",
+    "standard_answer": "二分查找通常适用于有序数据或具有单调性的搜索空间。常见边界问题包括左右闭开区间选择、mid 计算、循环条件、找第一个或最后一个满足条件的位置，以及结果不存在时的返回值。",
+    "rubric": ["是否说明有序或单调条件", "是否提到区间和循环条件", "是否提到边界位置查找"]
+  },
+  {
+    "category": "算法",
+    "difficulty": "中级",
+    "question": "哈希表适合解决哪些问题？有什么缺点？",
+    "standard_answer": "哈希表适合快速查找、去重、计数、两数之和、缓存映射等场景，平均时间复杂度通常接近 O(1)。缺点包括额外内存开销、哈希冲突、无序性，以及在极端冲突情况下性能下降。",
+    "rubric": ["是否说明快速查找等场景", "是否说明平均 O(1)", "是否提到内存或哈希冲突"]
+  },
+  {
+    "category": "算法",
+    "difficulty": "高级",
+    "question": "动态规划问题通常如何分析？",
+    "standard_answer": "动态规划适用于有重叠子问题和最优子结构的问题。分析时先定义状态含义，再推导状态转移方程，确定初始状态和遍历顺序，最后考虑空间优化。回答时应说明为什么当前状态能由更小子问题推出。",
+    "rubric": ["是否说明重叠子问题和最优子结构", "是否说明状态和转移方程", "是否说明初始化、遍历顺序或空间优化"]
+  },
+  {
+    "category": "算法",
+    "difficulty": "高级",
+    "question": "如何判断一个问题适合用 BFS 还是 DFS？",
+    "standard_answer": "BFS 按层遍历，适合求无权图最短路径、层级扩散和最少步数问题；DFS 沿路径深入，适合回溯、连通性、拓扑依赖和搜索所有方案。选择时要看是否需要最短层数、是否需要保存路径状态，以及空间占用。",
+    "rubric": ["是否说明 BFS 按层和最短路径", "是否说明 DFS 深入和回溯", "是否提到空间或路径状态"]
+  },
+  {
+    "category": "系统设计",
+    "difficulty": "初级",
+    "question": "为什么系统中常需要限流？",
+    "standard_answer": "限流用于控制单位时间内的请求量，避免突发流量压垮服务或下游资源，从而提高系统稳定性和可用性。",
+    "rubric": ["是否说明控制请求量", "是否提到保护服务", "是否提到稳定性或可用性"]
+  },
+  {
+    "category": "系统设计",
+    "difficulty": "初级",
+    "question": "什么是异步任务？适合处理哪些场景？",
+    "standard_answer": "异步任务是把耗时操作放到后台执行，不阻塞主请求流程。适合发送邮件、生成报告、处理文件、调用较慢的外部服务等场景。",
+    "rubric": ["是否说明后台执行", "是否说明不阻塞主流程", "是否能举出场景"]
+  },
+  {
+    "category": "系统设计",
+    "difficulty": "中级",
+    "question": "常见限流算法有哪些？它们有什么区别？",
+    "standard_answer": "常见限流算法包括固定窗口、滑动窗口、漏桶和令牌桶。固定窗口简单但边界可能突刺；滑动窗口更平滑；漏桶按固定速率流出，适合平滑流量；令牌桶允许一定突发流量，更灵活。",
+    "rubric": ["是否列出常见算法", "是否说明固定窗口边界问题", "是否区分漏桶和令牌桶"]
+  },
+  {
+    "category": "系统设计",
+    "difficulty": "中级",
+    "question": "如何设计一个简单的任务队列系统？",
+    "standard_answer": "可以由生产者提交任务，队列存储待处理任务，消费者异步拉取并执行。需要考虑任务状态、重试、失败记录、幂等、超时、死信队列、并发数控制和监控告警。简单实现可用 Redis、数据库表或消息队列。",
+    "rubric": ["是否说明生产者、队列、消费者", "是否提到重试和失败处理", "是否提到幂等、监控或死信队列"]
+  },
+  {
+    "category": "系统设计",
+    "difficulty": "高级",
+    "question": "如何设计一个高可用的缓存系统？",
+    "standard_answer": "应结合缓存集群或主从、合理 key 设计、TTL 随机化、热点 key 保护、缓存预热、多级缓存、降级和熔断。还要处理缓存穿透、击穿、雪崩以及数据库和缓存一致性问题，并通过监控观察命中率、延迟和错误率。",
+    "rubric": ["是否提到集群或主从", "是否处理穿透、击穿、雪崩", "是否提到一致性和监控指标"]
+  },
+  {
+    "category": "系统设计",
+    "difficulty": "高级",
+    "question": "如何设计一个短链接系统？",
+    "standard_answer": "短链接系统需要把长链接映射到短码。可用自增 ID 转 Base62、随机码加冲突检测或发号器生成短码。核心模块包括创建短链、跳转重定向、存储映射、缓存热点链接、统计点击和防滥用。还需考虑唯一性、过期时间、扩展性和高并发跳转。",
+    "rubric": ["是否说明长链到短码映射", "是否给出短码生成方案", "是否考虑缓存、统计、过期和高并发"]
+  }
+]
