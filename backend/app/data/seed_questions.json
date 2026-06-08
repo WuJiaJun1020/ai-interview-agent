@@ -418,5 +418,95 @@
     "question": "如何设计一个短链接系统？",
     "standard_answer": "短链接系统需要把长链接映射到短码。可用自增 ID 转 Base62、随机码加冲突检测或发号器生成短码。核心模块包括创建短链、跳转重定向、存储映射、缓存热点链接、统计点击和防滥用。还需考虑唯一性、过期时间、扩展性和高并发跳转。",
     "rubric": ["是否说明长链到短码映射", "是否给出短码生成方案", "是否考虑缓存、统计、过期和高并发"]
+  },
+  {
+    "category": "Python",
+    "difficulty": "初级",
+    "question_type": "single_choice",
+    "question": "下面哪个说法正确描述了 Python 中 tuple 的特点？",
+    "standard_answer": "tuple 是不可变序列，适合表示固定结构的数据。",
+    "options": ["A. tuple 是不可变序列", "B. tuple 只能保存字符串", "C. tuple 查询一定比 dict 快", "D. tuple 不能被遍历"],
+    "correct_answer": "A",
+    "rubric": ["是否理解 tuple 不可变", "是否能区分 tuple 和 list"]
+  },
+  {
+    "category": "MySQL",
+    "difficulty": "中级",
+    "question_type": "single_choice",
+    "question": "分析慢 SQL 时，下面哪个工具最常用于查看执行计划？",
+    "standard_answer": "EXPLAIN 用于查看 SQL 执行计划，帮助分析索引、扫描行数和访问类型。",
+    "options": ["A. EXPLAIN", "B. COMMIT", "C. GRANT", "D. SHOW CREATE TABLE"],
+    "correct_answer": "A",
+    "rubric": ["是否知道 EXPLAIN 的用途", "是否理解执行计划分析"]
+  },
+  {
+    "category": "Redis",
+    "difficulty": "中级",
+    "question_type": "single_choice",
+    "question": "热点 key 过期瞬间大量请求打到数据库，这更接近哪类缓存问题？",
+    "standard_answer": "热点 key 失效瞬间大量请求访问数据库属于缓存击穿。",
+    "options": ["A. 缓存穿透", "B. 缓存击穿", "C. 缓存雪崩", "D. 缓存预热"],
+    "correct_answer": "B",
+    "rubric": ["是否区分缓存击穿", "是否理解热点 key 失效场景"]
+  },
+  {
+    "category": "HTTP",
+    "difficulty": "初级",
+    "question_type": "single_choice",
+    "question": "HTTP 状态码 404 通常表示什么？",
+    "standard_answer": "404 表示请求的资源不存在。",
+    "options": ["A. 请求成功", "B. 资源不存在", "C. 服务器内部错误", "D. 未认证"],
+    "correct_answer": "B",
+    "rubric": ["是否知道 404 含义", "是否能区分常见状态码"]
+  },
+  {
+    "category": "Docker",
+    "difficulty": "中级",
+    "question_type": "single_choice",
+    "question": "构建镜像时，通常更推荐使用 COPY 而不是 ADD 的原因是什么？",
+    "standard_answer": "COPY 语义更简单明确，只负责复制文件；ADD 有额外自动解压和 URL 获取能力，容易带来不必要的不确定性。",
+    "options": ["A. COPY 语义更简单明确", "B. COPY 会自动解压 tar", "C. COPY 可以直接下载 URL", "D. COPY 只能复制 Python 文件"],
+    "correct_answer": "A",
+    "rubric": ["是否理解 COPY 和 ADD 差异", "是否知道优先 COPY 的原因"]
+  },
+  {
+    "category": "算法",
+    "difficulty": "中级",
+    "question_type": "single_choice",
+    "question": "二分查找通常要求搜索空间具备什么特性？",
+    "standard_answer": "二分查找通常要求数据有序，或搜索空间具备单调性。",
+    "options": ["A. 必须是链表", "B. 必须随机打乱", "C. 有序或具备单调性", "D. 只能包含字符串"],
+    "correct_answer": "C",
+    "rubric": ["是否理解二分查找适用条件", "是否知道有序或单调性"]
+  },
+  {
+    "category": "Python",
+    "difficulty": "中级",
+    "question_type": "multiple_choice",
+    "question": "下面哪些场景适合使用 Python 装饰器？",
+    "standard_answer": "装饰器适合日志记录、权限校验、缓存、重试等横切逻辑。",
+    "options": ["A. 日志记录", "B. 权限校验", "C. 缓存结果", "D. 改变操作系统内核"],
+    "correct_answer": "A,B,C",
+    "rubric": ["是否理解装饰器适合横切逻辑", "是否能识别日志、鉴权、缓存场景"]
+  },
+  {
+    "category": "Redis",
+    "difficulty": "高级",
+    "question_type": "multiple_choice",
+    "question": "使用 Redis 实现分布式锁时，下面哪些做法是合理的？",
+    "standard_answer": "合理做法包括使用 SET NX EX 原子加锁、value 使用唯一标识、释放锁时用 Lua 校验 value 后删除。",
+    "options": ["A. 使用 SET key value NX EX", "B. value 使用唯一标识", "C. 释放锁时直接 DEL 任意锁", "D. 用 Lua 校验 value 后删除"],
+    "correct_answer": "A,B,D",
+    "rubric": ["是否理解原子加锁", "是否理解唯一 value", "是否理解安全释放锁"]
+  },
+  {
+    "category": "系统设计",
+    "difficulty": "高级",
+    "question_type": "multiple_choice",
+    "question": "设计高可用缓存系统时，下面哪些措施通常是合理的？",
+    "standard_answer": "高可用缓存系统通常需要 TTL 随机化、热点 key 保护、多级缓存、降级熔断和监控命中率等措施。",
+    "options": ["A. TTL 随机化", "B. 热点 key 保护", "C. 完全取消数据库", "D. 监控缓存命中率"],
+    "correct_answer": "A,B,D",
+    "rubric": ["是否理解 TTL 随机化", "是否理解热点 key 保护", "是否理解监控指标"]
   }
 ]

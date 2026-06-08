@@ -75,8 +75,11 @@ def test_question_bank_crud_and_practice_flow(client: TestClient) -> None:
     all_questions_response = client.get("/api/questions")
     assert all_questions_response.status_code == 200
     all_questions = all_questions_response.json()
-    assert len(all_questions) >= 60
+    assert len(all_questions) >= 69
     assert {"初级", "中级", "高级"}.issubset({item["difficulty"] for item in all_questions})
+    assert {"short_answer", "single_choice", "multiple_choice"}.issubset(
+        {item["question_type"] for item in all_questions}
+    )
 
     list_response = client.get("/api/questions", params={"category": "Python"})
     assert list_response.status_code == 200
@@ -124,8 +127,71 @@ def test_question_bank_crud_and_practice_flow(client: TestClient) -> None:
     assert practice_answer_response.status_code == 200
     practice_result = practice_answer_response.json()
     assert 0 <= practice_result["score"] <= 100
+    assert practice_result["source"] == "mock"
     assert practice_result["standard_answer"]
     assert "feedback" in practice_result
+    assert practice_result["strengths"]
+    assert practice_result["weaknesses"]
+    assert practice_result["suggestions"]
+
+    choice_payload = {
+        "category": "测试分类",
+        "difficulty": "初级",
+        "question_type": "single_choice",
+        "question": "下面哪个选项是正确答案？",
+        "standard_answer": "A 是正确答案。",
+        "rubric": ["是否选择正确选项"],
+        "options": ["A. 正确答案", "B. 干扰项"],
+        "correct_answer": "A",
+    }
+    choice_create_response = client.post("/api/questions", json=choice_payload)
+    assert choice_create_response.status_code == 201
+    choice_question = choice_create_response.json()
+    assert choice_question["question_type"] == "single_choice"
+    assert choice_question["options"] == choice_payload["options"]
+
+    choice_answer_response = client.post(
+        "/api/practice/answer",
+        json={"question_id": choice_question["id"], "answer": "A"},
+    )
+    assert choice_answer_response.status_code == 200
+    choice_result = choice_answer_response.json()
+    assert choice_result["score"] == 100
+    assert choice_result["source"] == "mock"
+
+    multiple_choice_payload = {
+        "category": "测试分类",
+        "difficulty": "中级",
+        "question_type": "multiple_choice",
+        "question": "哪些选项是正确答案？",
+        "standard_answer": "A 和 C 是正确答案。",
+        "rubric": ["是否选择全部正确选项"],
+        "options": ["A. 正确答案", "B. 干扰项", "C. 也是正确答案"],
+        "correct_answer": "A,C",
+    }
+    multiple_choice_response = client.post("/api/questions", json=multiple_choice_payload)
+    assert multiple_choice_response.status_code == 201
+    multiple_choice_question = multiple_choice_response.json()
+    assert multiple_choice_question["question_type"] == "multiple_choice"
+
+    multiple_choice_answer_response = client.post(
+        "/api/practice/answer",
+        json={"question_id": multiple_choice_question["id"], "answer": "C,A"},
+    )
+    assert multiple_choice_answer_response.status_code == 200
+    multiple_choice_result = multiple_choice_answer_response.json()
+    assert multiple_choice_result["score"] == 100
+
+    with client.stream(
+        "POST",
+        "/api/practice/answer/stream",
+        json={"question_id": choice_question["id"], "answer": "A"},
+    ) as stream_response:
+        assert stream_response.status_code == 200
+        stream_text = "".join(stream_response.iter_text())
+    assert "event: progress" in stream_text
+    assert "event: result" in stream_text
+    assert '"score": 100' in stream_text
 
     delete_response = client.delete(f"/api/questions/{created['id']}")
     assert delete_response.status_code == 204
@@ -158,6 +224,10 @@ def test_interview_flow(client: TestClient) -> None:
     assert first_answer["answered_count"] == 1
     assert first_answer["is_finished"] is False
     assert first_answer["next_question"] is not None
+    assert first_answer["source"] == "mock"
+    assert first_answer["strengths"]
+    assert first_answer["weaknesses"]
+    assert first_answer["suggestions"]
 
     second_answer_response = client.post(
         f"/api/interview/sessions/{session['session_id']}/answer",
@@ -184,7 +254,8 @@ def test_qwen_compatible_llm_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     class FakeMessage:
         content = (
             '{"score": 88, "feedback": "回答结构清晰。", '
-            '"matched_rubric": ["核心概念"], "missing_rubric": ["项目例子"]}'
+            '"matched_rubric": ["核心概念"], "missing_rubric": ["项目例子"], '
+            '"strengths": ["概念准确"], "weaknesses": ["缺少项目例子"], "suggestions": ["补充实践场景"]}'
         )
 
     class FakeChoice:
@@ -222,6 +293,10 @@ def test_qwen_compatible_llm_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     assert result.score == 88
+    assert result.source == "llm"
+    assert result.strengths == ["概念准确"]
+    assert result.weaknesses == ["缺少项目例子"]
+    assert result.suggestions == ["补充实践场景"]
     assert captured["api_key"] == "test-dashscope-key"
     assert captured["base_url"] == "https://dashscope.aliyuncs.com/compatible-mode/v1"
     assert captured["model"] == "qwen3.7-plus"

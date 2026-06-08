@@ -74,6 +74,7 @@
                 </div>
               </div>
               <div id="practiceQuestion" class="question-box empty">点击“抽一道题”开始练习。</div>
+              <div id="choiceAnswerBox" class="choice-answer-box" hidden></div>
               <textarea id="practiceAnswer" placeholder="在这里输入你的回答"></textarea>
               <div class="answer-meta">
                 <span id="practiceAnswerMeta">0 字</span>
@@ -111,10 +112,28 @@
                       <option value="高级"></option>
                     </datalist>
                   </div>
+                  <div class="field">
+                    <label for="newQuestionType">题型</label>
+                    <select id="newQuestionType" name="questionType">
+                      <option value="short_answer">问答题</option>
+                      <option value="single_choice">单选题</option>
+                      <option value="multiple_choice">多选题</option>
+                    </select>
+                  </div>
                 </div>
                 <div class="field">
                   <label for="newQuestion">题目</label>
                   <textarea id="newQuestion" name="question" class="compact-textarea" placeholder="输入面试题" required></textarea>
+                </div>
+                <div id="choiceQuestionFields" class="choice-fields" hidden>
+                  <div class="field">
+                    <label for="newOptions">选项</label>
+                    <textarea id="newOptions" name="options" class="compact-textarea" placeholder="一行一个选项，例如：A. list 是可变序列"></textarea>
+                  </div>
+                  <div class="field">
+                    <label for="newCorrectAnswer">正确答案</label>
+                    <input id="newCorrectAnswer" name="correctAnswer" placeholder="单选例如 A，多选例如 A,C" />
+                  </div>
                 </div>
                 <div class="field">
                   <label for="newStandardAnswer">参考答案</label>

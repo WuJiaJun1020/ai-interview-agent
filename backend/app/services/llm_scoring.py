@@ -24,9 +24,9 @@ def score_answer_with_llm(
                 "content": (
                     "你是一个严谨的技术面试评分助手。"
                     "你必须只输出 JSON，不要输出 markdown。"
-                    "JSON 字段为 score, feedback, matched_rubric, missing_rubric。"
+                    "JSON 字段为 score, feedback, matched_rubric, missing_rubric, strengths, weaknesses, suggestions。"
                     "score 必须是 0 到 100 的整数。"
-                    "matched_rubric 和 missing_rubric 必须是字符串数组。"
+                    "matched_rubric、missing_rubric、strengths、weaknesses、suggestions 必须是字符串数组。"
                 ),
             },
             {
@@ -57,11 +57,17 @@ def score_answer_with_llm(
     matched_rubric = _as_string_list(data.get("matched_rubric"))
     missing_rubric = _as_string_list(data.get("missing_rubric"))
     feedback = str(data.get("feedback") or "已完成评分。")
+    strengths = _as_string_list(data.get("strengths"))
+    weaknesses = _as_string_list(data.get("weaknesses"))
+    suggestions = _as_string_list(data.get("suggestions"))
     return ScoreResult(
         score=score,
         matched_rubric=matched_rubric,
         missing_rubric=missing_rubric,
         feedback=feedback,
+        strengths=strengths or ["LLM 已完成回答优点分析。"],
+        weaknesses=weaknesses or ["LLM 未返回明确问题项。"],
+        suggestions=suggestions or ["建议结合评分点继续补充答案。"],
         source="llm",
     )
 

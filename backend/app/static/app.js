@@ -213,7 +213,7 @@ function renderQuestionList(questions) {
         <article class="question-item ${question.id === practiceQuestion?.id ? "selected" : ""} ${question.id === editingQuestionId ? "editing" : ""}">
           <div>
             <div class="question-item-title">${escapeHtml(question.question)}</div>
-            <div class="question-item-tags">#${question.id} · ${escapeHtml(question.category)} · ${escapeHtml(question.difficulty)}</div>
+            <div class="question-item-tags">#${question.id} · ${escapeHtml(question.category)} · ${escapeHtml(question.difficulty)} · ${questionTypeLabel(question.question_type)}</div>
           </div>
           <div class="question-item-actions">
             <button class="small-btn" type="button" data-practice-id="${question.id}">练这题</button>
@@ -233,6 +233,7 @@ function renderQuestion(target, question) {
       <span>#${question.id}</span>
       <span>${escapeHtml(question.category)}</span>
       <span>${escapeHtml(question.difficulty)}</span>
+      <span>${questionTypeLabel(question.question_type)}</span>
     </div>
     <p class="question-card-title">${escapeHtml(question.question)}</p>
     <div class="rubric-box">
@@ -242,17 +243,27 @@ function renderQuestion(target, question) {
   `;
 }
 
+function questionTypeLabel(type) {
+  if (type === "multiple_choice") return "多选题";
+  return type === "single_choice" ? "单选题" : "问答题";
+}
+
 function renderPracticeResult(result) {
   const target = $("practiceResult");
+  const source = scoreSourceLabel(result.source);
   target.classList.remove("empty");
   target.innerHTML = `
     <div class="score-card">
       <div class="score">${result.score}</div>
       <div>
-        <strong>本次评分</strong>
+        <div class="score-card-header">
+          <strong>本次评分</strong>
+          <span class="source-badge ${source.className}">${source.label}</span>
+        </div>
         <p>${escapeHtml(result.feedback)}</p>
       </div>
     </div>
+    ${renderAnalysisSections(result)}
     <div class="feedback-grid">
       <div>
         <strong>已覆盖</strong>
@@ -269,9 +280,47 @@ function renderPracticeResult(result) {
   `;
 }
 
+function renderPracticePending(message) {
+  const target = $("practiceResult");
+  target.classList.remove("empty");
+  target.innerHTML = `
+    <div class="pending-card">
+      <div class="loading-dot"></div>
+      <div>
+        <strong>正在评分</strong>
+        <p>${escapeHtml(message)}</p>
+      </div>
+    </div>
+  `;
+}
+
 function renderPointList(items) {
   if (!items.length) return '<p class="meta">暂无</p>';
   return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+}
+
+function scoreSourceLabel(source) {
+  if (source === "llm") return { label: "LLM 评分", className: "source-llm" };
+  return { label: "mock 评分", className: "source-mock" };
+}
+
+function renderAnalysisSections(result) {
+  return `
+    <div class="analysis-grid">
+      <section>
+        <strong>优点</strong>
+        ${renderPointList(result.strengths || [])}
+      </section>
+      <section>
+        <strong>问题</strong>
+        ${renderPointList(result.weaknesses || [])}
+      </section>
+      <section>
+        <strong>建议</strong>
+        ${renderPointList(result.suggestions || [])}
+      </section>
+    </div>
+  `;
 }
 
 function scoreLevel(score) {
@@ -331,17 +380,20 @@ function renderInterviewLogs(report = null) {
     .map(
       (item) => {
         const level = scoreLevel(item.score);
+        const source = scoreSourceLabel(item.source);
         return `
         <article class="interview-card">
           <div class="interview-card-header">
             <strong>第 ${item.index} 题</strong>
             <div class="interview-score-group">
+              <span class="source-badge ${source.className}">${source.label}</span>
               <span class="score-badge ${level.className}">${level.label}</span>
               <span class="interview-score">${item.score} 分</span>
             </div>
           </div>
           <p class="meta">你的回答：${escapeHtml(item.answer)}</p>
           <p>${escapeHtml(item.feedback)}</p>
+          ${renderAnalysisSections(item)}
           <details class="answer-details">
             <summary>查看参考答案</summary>
             <p>${escapeHtml(item.standardAnswer)}</p>
@@ -395,6 +447,7 @@ function useQuestionForPractice(question) {
   practiceQuestion = question;
   renderQuestion($("practiceQuestion"), practiceQuestion);
   $("practiceAnswer").value = "";
+  renderAnswerInputForQuestion(practiceQuestion);
   updateAnswerMeta("practiceAnswer", "practiceAnswerMeta");
   $("practiceResult").classList.add("empty");
   $("practiceResult").textContent = "提交答案后显示评分、反馈和参考答案。";
@@ -408,9 +461,13 @@ function fillQuestionForm(question) {
   editingQuestionId = question.id;
   $("newCategory").value = question.category;
   $("newDifficulty").value = question.difficulty;
+  $("newQuestionType").value = question.question_type || "short_answer";
   $("newQuestion").value = question.question;
   $("newStandardAnswer").value = question.standard_answer;
   $("newRubric").value = question.rubric.join("\n");
+  $("newOptions").value = (question.options || []).join("\n");
+  $("newCorrectAnswer").value = question.correct_answer || "";
+  toggleQuestionTypeFields();
   $("questionFormTitle").textContent = `编辑题目 #${question.id}`;
   $("questionFormMeta").textContent = "保存后会更新题库列表";
   $("createQuestionBtn").textContent = "保存修改";
@@ -426,6 +483,7 @@ function resetQuestionForm() {
   $("questionFormMeta").textContent = "保存后可直接练习";
   $("createQuestionBtn").textContent = "保存题目";
   $("cancelEditBtn").hidden = true;
+  toggleQuestionTypeFields();
   syncCreateFormDefaults();
   renderQuestionList(questionCache);
 }
@@ -450,6 +508,7 @@ async function loadPracticeQuestion() {
   practiceQuestion = await request(`/api/practice/question${qs ? `?${qs}` : ""}`);
   renderQuestion($("practiceQuestion"), practiceQuestion);
   $("practiceAnswer").value = "";
+  renderAnswerInputForQuestion(practiceQuestion);
   updateAnswerMeta("practiceAnswer", "practiceAnswerMeta");
   $("practiceResult").classList.add("empty");
   $("practiceResult").textContent = "提交答案后显示评分、反馈和参考答案。";
@@ -467,13 +526,23 @@ async function saveQuestion(event) {
   const payload = {
     category: $("newCategory").value.trim(),
     difficulty: $("newDifficulty").value.trim(),
+    question_type: $("newQuestionType").value,
     question: $("newQuestion").value.trim(),
     standard_answer: $("newStandardAnswer").value.trim(),
     rubric,
+    options: $("newOptions")
+      .value.split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean),
+    correct_answer: $("newCorrectAnswer").value.trim() || null,
   };
 
   if (!payload.category || !payload.difficulty || !payload.question || !payload.standard_answer) {
     setStatus("请填写分类、难度、题目和参考答案");
+    return;
+  }
+  if (isChoiceType(payload.question_type) && (!payload.options.length || !payload.correct_answer)) {
+    setStatus("选择题需要填写选项和正确答案");
     return;
   }
 
@@ -514,17 +583,98 @@ async function submitPracticeAnswer() {
     setStatus("请先抽一道题");
     return;
   }
-  const answer = $("practiceAnswer").value.trim();
+  const answer = getPracticeAnswer();
   if (!answer) {
     setStatus("请先输入回答");
     return;
   }
-  const result = await request("/api/practice/answer", {
+  await streamPracticeAnswer(answer);
+}
+
+function renderAnswerInputForQuestion(question) {
+  const choiceBox = $("choiceAnswerBox");
+  if (isChoiceType(question.question_type)) {
+    $("practiceAnswer").hidden = true;
+    choiceBox.hidden = false;
+    const inputType = question.question_type === "multiple_choice" ? "checkbox" : "radio";
+    choiceBox.innerHTML = (question.options || [])
+      .map((option, index) => {
+        const value = option.split(".")[0].trim() || option;
+        return `
+          <label class="choice-answer-option">
+            <input type="${inputType}" name="choiceAnswer" value="${escapeHtml(value)}" ${index === 0 && inputType === "radio" ? "checked" : ""} />
+            <span>${escapeHtml(option)}</span>
+          </label>
+        `;
+      })
+      .join("");
+    return;
+  }
+
+  $("practiceAnswer").hidden = false;
+  choiceBox.hidden = true;
+  choiceBox.innerHTML = "";
+}
+
+function getPracticeAnswer() {
+  if (practiceQuestion?.question_type === "single_choice") {
+    return document.querySelector('input[name="choiceAnswer"]:checked')?.value || "";
+  }
+  if (practiceQuestion?.question_type === "multiple_choice") {
+    return [...document.querySelectorAll('input[name="choiceAnswer"]:checked')]
+      .map((item) => item.value)
+      .join(",");
+  }
+  return $("practiceAnswer").value.trim();
+}
+
+function isChoiceType(type) {
+  return type === "single_choice" || type === "multiple_choice";
+}
+
+async function streamPracticeAnswer(answer) {
+  renderPracticePending("已提交答案，正在等待评分服务响应。");
+  setStatus("正在评分...");
+  const response = await fetch("/api/practice/answer/stream", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question_id: practiceQuestion.id, answer }),
   });
-  renderPracticeResult(result);
-  setStatus("练习答案已评分");
+  if (!response.ok || !response.body) {
+    throw new Error(await response.text());
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() || "";
+    parts.forEach(handleSseMessage);
+  }
+}
+
+function handleSseMessage(raw) {
+  const event = raw.match(/^event: (.+)$/m)?.[1];
+  const dataText = raw.match(/^data: (.+)$/m)?.[1];
+  if (!event || !dataText) return;
+  const payload = JSON.parse(dataText);
+  if (event === "progress") {
+    renderPracticePending(payload.message || "正在评分...");
+    setStatus(payload.message || "正在评分...");
+  }
+  if (event === "result") {
+    renderPracticeResult(payload);
+    setStatus("练习答案已评分");
+  }
+}
+
+function toggleQuestionTypeFields() {
+  const isChoice = isChoiceType($("newQuestionType").value);
+  $("choiceQuestionFields").hidden = !isChoice;
 }
 
 async function startInterview() {
@@ -565,8 +715,12 @@ async function submitInterviewAnswer() {
   interviewLogs.push({
     index: result.answered_count,
     score: result.score,
+    source: result.source,
     answer,
     feedback: result.feedback,
+    strengths: result.strengths,
+    weaknesses: result.weaknesses,
+    suggestions: result.suggestions,
     standardAnswer: result.standard_answer,
   });
   renderInterviewLogs();
@@ -622,6 +776,7 @@ function bindActions() {
   $("category").addEventListener("change", syncCreateFormDefaults);
   $("difficulty").addEventListener("change", syncCreateFormDefaults);
   $("questionForm").addEventListener("submit", (event) => runAction(() => saveQuestion(event), "正在保存题目..."));
+  $("newQuestionType").addEventListener("change", toggleQuestionTypeFields);
   $("cancelEditBtn").addEventListener("click", () => {
     resetQuestionForm();
     setStatus("已取消编辑");
@@ -655,6 +810,7 @@ updatePracticeSummary();
 updateInterviewConfigSummary();
 updateAnswerMeta("practiceAnswer", "practiceAnswerMeta");
 updateAnswerMeta("interviewAnswer", "interviewAnswerMeta");
+toggleQuestionTypeFields();
 refreshConfigStatus().catch(() => {
   $("scoringMode").textContent = "评分：状态未知";
 });

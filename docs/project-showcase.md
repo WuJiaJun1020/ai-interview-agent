@@ -15,7 +15,7 @@ AI 模拟面试系统 | FastAPI / SQLite / SQLAlchemy / JavaScript / OpenAI API
 - 使用 FastAPI 构建后端接口，基于 SQLAlchemy 和 SQLite 管理题库、面试会话和答题记录。
 - 实现题库 CRUD、种子题库初始化、按分类/难度筛选、随机抽题和多轮模拟面试流程。
 - 前端使用原生 HTML/CSS/JavaScript 构建单页应用，支持题目新增/编辑/删除、练习评分展示、面试进度和最终报告展示。
-- 设计 mock 评分与 LLM 评分双模式，默认本地 mock 可运行，配置 OpenAI 或 DashScope API Key 后可切换 OpenAI 兼容 LLM 评分，并支持失败自动回退。
+- 设计 mock 评分与 LLM 评分双模式，默认本地 mock 可运行，配置 OpenAI 或 DashScope API Key 后可切换 OpenAI 兼容 LLM 评分，并支持失败自动回退和结构化反馈展示。
 ```
 
 ## 面试讲解话术
@@ -31,7 +31,7 @@ AI 模拟面试系统 | FastAPI / SQLite / SQLAlchemy / JavaScript / OpenAI API
 ## 项目亮点
 
 - 完整闭环：从题库、练习、评分到模拟面试报告都已跑通。
-- 题库更完整：内置 60 道结构化种子题，覆盖 10 个后端分类和初级、中级、高级难度。
+- 题库更完整：内置 69 道结构化种子题，覆盖 10 个后端分类、初级/中级/高级难度，并支持问答题、单选题和多选题。
 - 可本地演示：默认 mock 评分，不需要 API Key 也能运行。
 - 可扩展评分：预留 OpenAI 兼容 LLM 评分，支持 mock/llm 模式切换。
 - 千问兼容：支持阿里云百炼千问兼容模式，可配置 `qwen3.7-plus` 做真实评分。
@@ -39,6 +39,8 @@ AI 模拟面试系统 | FastAPI / SQLite / SQLAlchemy / JavaScript / OpenAI API
 - 数据可维护：前端支持题目新增、编辑、删除，不依赖 Swagger UI。
 - 体验更清晰：前端工作台展示筛选范围、当前练习和面试状态，题目卡片清晰呈现分类、难度和评分点。
 - 报告更完整：模拟面试结束后展示平均分、完成状态、每题得分等级、用户回答、复习建议和下一步行动。
+- 反馈更结构化：练习和面试结果展示评分来源、优点、问题、建议和评分点覆盖情况。
+- 交互更及时：练习提交使用 SSE 流式进度，LLM 评分期间页面会立即显示等待状态。
 - 文档持续维护：`AGENTS.md`、`docs/task-goals.md`、`docs/development-progress.md` 记录目标、进度和下一步。
 
 ## 演示步骤

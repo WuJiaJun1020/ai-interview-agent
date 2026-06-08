@@ -99,7 +99,9 @@ uvicorn app.main:app --reload
 - 已补齐题库 CRUD 基础接口：详情、修改、删除。
 - 题目列表接口支持通过 `category` 和 `difficulty` 查询参数筛选。
 - 已添加并扩充种子题库数据：Python、FastAPI、MySQL、Redis、HTTP、Git、Linux、Docker、算法、系统设计。
-- 当前种子题库共 60 道，10 个分类，每类初级/中级/高级各 2 道。
+- 当前种子题库共 69 道，10 个分类，每类初级/中级/高级各 2 道，并额外包含 6 道单选题和 3 道多选题。
+- 题库模型支持问答题 `short_answer`、单选题 `single_choice` 和多选题 `multiple_choice`。
+- 练习提交新增 SSE 流式接口 `POST /api/practice/answer/stream`，前端会立即显示评分进度。
 - 已添加 `POST /api/questions/seed` 初始化题库接口，重复调用不会重复插入。
 - 已添加练习接口：`GET /api/practice/question` 和 `POST /api/practice/answer`。
 - 练习答案评分目前是 mock 规则评分，不调用真实 LLM。
@@ -124,6 +126,9 @@ uvicorn app.main:app --reload
 - 前端题库状态会显示全库题量、分类数和难度数。
 - 已准备真实 LLM 评分接入：`SCORING_MODE=mock|llm`，默认 mock；配置 OpenAI API Key 或 DashScope API Key 后可切换到 LLM 评分。
 - 已支持阿里云百炼千问兼容模式：本地 `.env` 可配置 `DASHSCOPE_API_KEY`、`OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1`、`OPENAI_MODEL=qwen3.7-plus`、`LLM_ENABLE_THINKING=true`。
+- 评分结果已扩展为结构化输出：`source`、`strengths`、`weaknesses`、`suggestions`、评分点覆盖和参考答案。
+- 前端练习反馈和模拟面试记录会展示评分来源、优点、问题和建议。
+- 前端在作答区域展示选择题选项：单选题用单选按钮，多选题用复选框。
 - LLM 评分失败会自动回退 mock，避免影响本地演示。
 - 已添加 `GET /api/config/status`，前端顶部会显示当前评分模式和 LLM 配置状态，不暴露 API Key。
 - 已添加 `.env.example`。

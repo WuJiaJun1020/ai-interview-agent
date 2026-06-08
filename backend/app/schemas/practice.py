@@ -11,7 +11,11 @@ class PracticeAnswerCreate(BaseModel):
 class PracticeAnswerResult(BaseModel):
     question: QuestionRead
     score: int
+    source: str
     feedback: str
+    strengths: list[str]
+    weaknesses: list[str]
+    suggestions: list[str]
     matched_rubric: list[str]
     missing_rubric: list[str]
     standard_answer: str

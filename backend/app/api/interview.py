@@ -68,6 +68,8 @@ def submit_interview_answer(
         payload.answer,
         question.standard_answer,
         question.rubric,
+        question.question_type,
+        question.correct_answer,
     )
     db.add(
         InterviewAnswer(
@@ -96,7 +98,11 @@ def submit_interview_answer(
     return InterviewAnswerResult(
         session_id=session.id,
         score=score_result.score,
+        source=score_result.source,
         feedback=score_result.feedback,
+        strengths=score_result.strengths,
+        weaknesses=score_result.weaknesses,
+        suggestions=score_result.suggestions,
         standard_answer=question.standard_answer,
         next_question=QuestionRead.model_validate(next_question) if next_question else None,
         answered_count=session.answered_count,

@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.config import settings
@@ -32,3 +32,29 @@ def init_db() -> None:
     from app.models import question  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _migrate_sqlite_questions()
+
+
+def _migrate_sqlite_questions() -> None:
+    if not settings.database_url.startswith("sqlite"):
+        return
+
+    inspector = inspect(engine)
+    if "questions" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("questions")}
+    statements = []
+    if "question_type" not in columns:
+        statements.append("ALTER TABLE questions ADD COLUMN question_type VARCHAR(50) DEFAULT 'short_answer'")
+    if "options" not in columns:
+        statements.append("ALTER TABLE questions ADD COLUMN options JSON DEFAULT '[]'")
+    if "correct_answer" not in columns:
+        statements.append("ALTER TABLE questions ADD COLUMN correct_answer TEXT")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))

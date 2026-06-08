@@ -24,7 +24,11 @@ class InterviewAnswerCreate(BaseModel):
 class InterviewAnswerResult(BaseModel):
     session_id: int
     score: int
+    source: str
     feedback: str
+    strengths: list[str]
+    weaknesses: list[str]
+    suggestions: list[str]
     standard_answer: str
     next_question: QuestionRead | None
     answered_count: int
