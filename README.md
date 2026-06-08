@@ -77,13 +77,26 @@ uvicorn app.main:app --reload
 
 默认不需要 API Key，系统使用 mock 评分。
 
-如果要启用真实 LLM 评分，在项目根目录创建 `.env`，不要提交这个文件：
+如果要启用真实 LLM 评分，在项目根目录创建 `.env`，不要提交这个文件。
+
+OpenAI 官方接口示例：
 
 ```env
 SCORING_MODE=llm
 OPENAI_API_KEY=你的真实 key
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-4o-mini
+LLM_ENABLE_THINKING=false
+```
+
+阿里云百炼千问兼容模式示例：
+
+```env
+SCORING_MODE=llm
+DASHSCOPE_API_KEY=你的真实 key
+OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+OPENAI_MODEL=qwen3.7-plus
+LLM_ENABLE_THINKING=true
 ```
 
 重启后端后，页面顶部评分状态会显示 LLM 配置情况。若 LLM 调用失败，系统会自动回退 mock 评分，避免影响本地演示。

@@ -24,6 +24,7 @@ http://127.0.0.1:8000/docs
 
 - 确认 `.env` 没有被 Git 跟踪。
 - 确认真实 API Key 没有写入代码、README 或文档。
+- 确认千问/DashScope API Key 只存在于本地 `.env`。
 - 确认 `dev.db`、`*.sqlite`、`*.sqlite3` 没有被 Git 跟踪。
 - 确认 `__pycache__`、`.pytest_cache` 等缓存文件没有被 Git 跟踪。
 - 确认本次实现内容已更新到：

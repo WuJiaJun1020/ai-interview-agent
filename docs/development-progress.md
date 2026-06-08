@@ -73,6 +73,8 @@
 - 已准备真实 LLM 评分接入：
   - 新增 `SCORING_MODE=mock|llm` 配置，默认 mock。
   - 新增 OpenAI 兼容配置：`OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`。
+  - 支持阿里云百炼千问兼容模式：`DASHSCOPE_API_KEY`、`OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1`、`OPENAI_MODEL=qwen3.7-plus`。
+  - 支持 `LLM_ENABLE_THINKING=true|false`，用于给兼容接口传入 `extra_body.enable_thinking`。
   - 新增 LLM 评分服务封装。
   - 练习评分和模拟面试评分统一走评分服务，LLM 不可用时自动回退 mock。
 - 已添加评分配置状态展示：
@@ -86,7 +88,7 @@
 - 已新增 `docs/project-showcase.md`，包含项目展示、简历描述、面试讲解、亮点和演示步骤。
 - 已创建并维护 `AGENTS.md`。
 - 已添加后端自动化冒烟测试：`backend/tests/test_smoke.py`。
-- 自动化测试覆盖健康检查、配置状态安全、首页、题库初始化、题库 CRUD、练习评分和模拟面试主流程。
+- 自动化测试覆盖健康检查、配置状态安全、首页、题库初始化、题库 CRUD、练习评分、模拟面试主流程和千问兼容 LLM 请求参数构造。
 - 已将 FastAPI 启动初始化从 `on_event` 改为 lifespan，消除弃用警告。
 - 已新增发布检查清单：`docs/release-checklist.md`。
 - 已优化前端工作台可读性：
@@ -179,7 +181,7 @@ conda run -n ai-interview-agent python -m pytest backend/tests
 
 ## 下一步计划
 
-- 下一步建议接入真实 LLM 评分，并优化评分输出结构。
+- 当前本地已可配置千问 3.7 Plus 评分；下一步建议手动验证真实评分效果，并优化评分输出结构。
 - 继续优化前端视觉和交互细节，后续做移动端检查、流程分步引导和题库管理细节。
 - 添加 RAG 和向量库 Chroma。
 - 添加 LangGraph 面试工作流。

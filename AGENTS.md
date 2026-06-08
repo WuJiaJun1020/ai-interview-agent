@@ -122,7 +122,8 @@ uvicorn app.main:app --reload
 - 前端分类下拉和新增题目的分类候选项会根据题库自动生成。
 - 前端难度下拉和新增题目的难度候选项会根据题库自动生成。
 - 前端题库状态会显示全库题量、分类数和难度数。
-- 已准备真实 LLM 评分接入：`SCORING_MODE=mock|llm`，默认 mock；配置 OpenAI API Key 后可切换到 LLM 评分。
+- 已准备真实 LLM 评分接入：`SCORING_MODE=mock|llm`，默认 mock；配置 OpenAI API Key 或 DashScope API Key 后可切换到 LLM 评分。
+- 已支持阿里云百炼千问兼容模式：本地 `.env` 可配置 `DASHSCOPE_API_KEY`、`OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1`、`OPENAI_MODEL=qwen3.7-plus`、`LLM_ENABLE_THINKING=true`。
 - LLM 评分失败会自动回退 mock，避免影响本地演示。
 - 已添加 `GET /api/config/status`，前端顶部会显示当前评分模式和 LLM 配置状态，不暴露 API Key。
 - 已添加 `.env.example`。
@@ -179,7 +180,7 @@ ai-interview-agent/
 下一步建议优化前端体验：
 
 - 检查 `http://127.0.0.1:8000/` 页面布局和交互。
-- 下一步建议接入真实 LLM 评分，并优化评分提示词和结构化输出。
+- 下一步建议手动验证千问 3.7 Plus 真实评分效果，并优化评分提示词和结构化输出。
 - 后续继续优化移动端效果、流程分步引导和题库管理细节。
 - 下一步可在用户提供 API Key 后验证真实 LLM 评分效果，并优化提示词。
 - 后续需求变化时同步更新 `docs/task-goals.md`。
@@ -201,6 +202,7 @@ ai-interview-agent/
 
 - 不要提交 `.env`、真实 API Key、本地数据库文件或向量库文件。
 - API Key 只应由用户自己保存在本地 `.env` 中。
+- 用户曾提供千问 API Key，已写入本地忽略文件 `.env`，禁止提交、打印或写入文档。
 - 当前默认数据库文件为 `backend/dev.db`，应保持被 Git 忽略。
 - 后端可自动测试的内容，Codex 先自测通过再交付。
 - 用户主要负责测试前端页面和交互。

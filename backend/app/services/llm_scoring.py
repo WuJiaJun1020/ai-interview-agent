@@ -12,19 +12,21 @@ def score_answer_with_llm(
     standard_answer: str,
     rubric: list[str],
 ) -> ScoreResult:
-    if not settings.openai_api_key:
-        raise RuntimeError("OPENAI_API_KEY is not configured")
+    if not settings.llm_api_key:
+        raise RuntimeError("OPENAI_API_KEY or DASHSCOPE_API_KEY is not configured")
 
-    client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
-    response = client.chat.completions.create(
-        model=settings.openai_model,
-        messages=[
+    client = OpenAI(api_key=settings.llm_api_key, base_url=settings.openai_base_url)
+    request_payload = {
+        "model": settings.openai_model,
+        "messages": [
             {
                 "role": "system",
                 "content": (
                     "你是一个严谨的技术面试评分助手。"
                     "你必须只输出 JSON，不要输出 markdown。"
                     "JSON 字段为 score, feedback, matched_rubric, missing_rubric。"
+                    "score 必须是 0 到 100 的整数。"
+                    "matched_rubric 和 missing_rubric 必须是字符串数组。"
                 ),
             },
             {
@@ -41,9 +43,13 @@ def score_answer_with_llm(
                 ),
             },
         ],
-        temperature=0.2,
-        response_format={"type": "json_object"},
-    )
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"},
+    }
+    if settings.llm_enable_thinking:
+        request_payload["extra_body"] = {"enable_thinking": True}
+
+    response = client.chat.completions.create(**request_payload)
 
     content = response.choices[0].message.content or "{}"
     data = json.loads(content)

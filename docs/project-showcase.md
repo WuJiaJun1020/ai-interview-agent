@@ -15,7 +15,7 @@ AI 模拟面试系统 | FastAPI / SQLite / SQLAlchemy / JavaScript / OpenAI API
 - 使用 FastAPI 构建后端接口，基于 SQLAlchemy 和 SQLite 管理题库、面试会话和答题记录。
 - 实现题库 CRUD、种子题库初始化、按分类/难度筛选、随机抽题和多轮模拟面试流程。
 - 前端使用原生 HTML/CSS/JavaScript 构建单页应用，支持题目新增/编辑/删除、练习评分展示、面试进度和最终报告展示。
-- 设计 mock 评分与 LLM 评分双模式，默认本地 mock 可运行，配置 API Key 后可切换 OpenAI 兼容 LLM 评分，并支持失败自动回退。
+- 设计 mock 评分与 LLM 评分双模式，默认本地 mock 可运行，配置 OpenAI 或 DashScope API Key 后可切换 OpenAI 兼容 LLM 评分，并支持失败自动回退。
 ```
 
 ## 面试讲解话术
@@ -24,7 +24,7 @@ AI 模拟面试系统 | FastAPI / SQLite / SQLAlchemy / JavaScript / OpenAI API
 
 后端使用 FastAPI 提供接口，SQLAlchemy 负责数据库模型和查询，SQLite 用作本地开发数据库。题库部分支持增删改查和种子数据初始化；练习部分可以根据分类和难度抽题；模拟面试部分会创建一个会话，按设定题数逐题回答，最后生成平均分和建议。
 
-评分模块目前支持两种模式。默认是 mock 规则评分，这样项目不依赖 API Key 也能完整演示。后续只要配置 `.env` 中的 `SCORING_MODE=llm` 和 `OPENAI_API_KEY`，就可以切换到 OpenAI 兼容的 LLM 评分。LLM 调用失败时会自动回退 mock，保证演示过程稳定。
+评分模块目前支持两种模式。默认是 mock 规则评分，这样项目不依赖 API Key 也能完整演示。后续只要配置 `.env` 中的 `SCORING_MODE=llm` 和 OpenAI 或 DashScope API Key，就可以切换到 OpenAI 兼容的 LLM 评分。当前本地优先验证阿里云百炼千问 `qwen3.7-plus`。LLM 调用失败时会自动回退 mock，保证演示过程稳定。
 
 前端目前是 FastAPI 托管的原生单页应用，重点是快速跑通产品闭环。页面支持初始化题库、按分类筛选、选择题目练习、新增和编辑题目、模拟面试、进度条、逐题反馈和最终报告。后续如果交互复杂度继续上升，可以迁移到 Next.js。
 
@@ -34,6 +34,7 @@ AI 模拟面试系统 | FastAPI / SQLite / SQLAlchemy / JavaScript / OpenAI API
 - 题库更完整：内置 60 道结构化种子题，覆盖 10 个后端分类和初级、中级、高级难度。
 - 可本地演示：默认 mock 评分，不需要 API Key 也能运行。
 - 可扩展评分：预留 OpenAI 兼容 LLM 评分，支持 mock/llm 模式切换。
+- 千问兼容：支持阿里云百炼千问兼容模式，可配置 `qwen3.7-plus` 做真实评分。
 - 稳定降级：LLM 不可用时自动回退 mock，不影响演示。
 - 数据可维护：前端支持题目新增、编辑、删除，不依赖 Swagger UI。
 - 体验更清晰：前端工作台展示筛选范围、当前练习和面试状态，题目卡片清晰呈现分类、难度和评分点。

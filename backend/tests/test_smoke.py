@@ -12,6 +12,13 @@ sys.path.insert(0, str(BACKEND_DIR))
 from app.db.session import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import interview, question  # noqa: F401, E402
+from app.core.config import settings  # noqa: E402
+from app.services import llm_scoring  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def force_mock_scoring(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "scoring_mode", "mock")
 
 
 @pytest.fixture()
@@ -169,3 +176,53 @@ def test_interview_flow(client: TestClient) -> None:
     assert report["total_questions"] == 2
     assert 0 <= report["average_score"] <= 100
     assert report["recommendation"]
+
+
+def test_qwen_compatible_llm_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeMessage:
+        content = (
+            '{"score": 88, "feedback": "回答结构清晰。", '
+            '"matched_rubric": ["核心概念"], "missing_rubric": ["项目例子"]}'
+        )
+
+    class FakeChoice:
+        message = FakeMessage()
+
+    class FakeResponse:
+        choices = [FakeChoice()]
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return FakeResponse()
+
+    class FakeChat:
+        completions = FakeCompletions()
+
+    class FakeOpenAI:
+        def __init__(self, api_key: str, base_url: str):
+            captured["api_key"] = api_key
+            captured["base_url"] = base_url
+            self.chat = FakeChat()
+
+    monkeypatch.setattr(llm_scoring, "OpenAI", FakeOpenAI)
+    monkeypatch.setattr(settings, "openai_api_key", "")
+    monkeypatch.setattr(settings, "dashscope_api_key", "test-dashscope-key")
+    monkeypatch.setattr(settings, "openai_base_url", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+    monkeypatch.setattr(settings, "openai_model", "qwen3.7-plus")
+    monkeypatch.setattr(settings, "llm_enable_thinking", True)
+
+    result = llm_scoring.score_answer_with_llm(
+        question="什么是索引？",
+        answer="索引用于加速查询。",
+        standard_answer="索引帮助数据库减少扫描范围。",
+        rubric=["核心概念", "项目例子"],
+    )
+
+    assert result.score == 88
+    assert captured["api_key"] == "test-dashscope-key"
+    assert captured["base_url"] == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    assert captured["model"] == "qwen3.7-plus"
+    assert captured["extra_body"] == {"enable_thinking": True}

@@ -11,6 +11,8 @@ def config_status() -> dict[str, str | bool]:
     return {
         "scoring_mode": scoring_mode,
         "llm_enabled": scoring_mode == "llm",
-        "openai_configured": bool(settings.openai_api_key),
+        "openai_configured": bool(settings.llm_api_key),
         "openai_model": settings.openai_model,
+        "openai_base_url": settings.openai_base_url,
+        "llm_enable_thinking": settings.llm_enable_thinking,
     }
