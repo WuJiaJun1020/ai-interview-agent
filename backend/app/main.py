@@ -23,9 +23,10 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
-static_dir = Path(__file__).resolve().parent / "static"
+project_root = Path(__file__).resolve().parents[2]
+frontend_dir = project_root / "frontend"
 
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 app.include_router(health_router)
 app.include_router(config_status_router)
 app.include_router(db_status_router)
@@ -36,4 +37,4 @@ app.include_router(interview_router)
 
 @app.get("/")
 def root() -> FileResponse:
-    return FileResponse(static_dir / "index.html")
+    return FileResponse(frontend_dir / "index.html")

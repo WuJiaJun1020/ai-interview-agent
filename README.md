@@ -32,13 +32,14 @@ ai-interview-agent/
       models/              # SQLAlchemy 模型
       schemas/             # Pydantic Schema
       services/            # 评分、种子数据等服务
-      static/              # 前端页面
       main.py
     requirements.txt
+  frontend/                # 前端静态页面
+    index.html
+    app.js
+    styles.css
   docs/
-    development-progress.md
-    release-checklist.md
-    task-goals.md
+    project-notes.md
   .env.example
   AGENTS.md
   start-backend.bat
@@ -136,15 +137,14 @@ http://127.0.0.1:8000/docs
 ## 当前文档
 
 - `AGENTS.md`：给 Codex 和开发者看的项目上下文。
-- `docs/development-progress.md`：已完成功能和测试方式。
-- `docs/task-goals.md`：长期任务目标和需求变更规则。
-- `docs/project-showcase.md`：项目展示、简历描述和面试讲解材料。
-- `docs/release-checklist.md`：提交、演示和打标签前的检查清单。
+- `docs/project-notes.md`：合并后的项目文档，包含任务目标、开发进度、测试/发布检查和展示材料。
 
 ## 后续计划
 
-- 验证真实 LLM 评分效果并优化提示词。
-- 继续打磨前端交互体验。
+- 增加题目标签能力和标签筛选。
+- 高质量扩充题库，补充更真实的工程题、排错题、设计题、单选题和多选题。
+- 增强练习反馈，增加下一步练习建议。
+- 逐步整理 `frontend/app.js` 的代码结构。
 - 接入 RAG 和向量库 Chroma。
 - 引入 LangGraph 管理更完整的多轮面试流程。
 - MVP 稳定后打标签 `v0.1.0`。

@@ -20,15 +20,13 @@
 - 后端能自动测试的部分由 Codex 自测。
 - 用户主要测试前端页面和交互体验。
 - 测试通过后再继续下一步。
-- 已实现和待开发功能需要持续记录在文档中。
-- 后期需求可能改变，需要同步维护长期任务目标文档。
+- 已实现和待开发功能需要持续记录在 `AGENTS.md` 和 `docs/project-notes.md` 中。
+- 后期需求可能改变，需要同步维护项目文档。
 
-当前进度文档：
+当前文档：
 
-- `docs/development-progress.md`
-- `docs/task-goals.md`
-- `docs/project-showcase.md`
-- `docs/release-checklist.md`
+- `AGENTS.md`：给 Codex 读取的项目上下文，保持独立。
+- `docs/project-notes.md`：合并后的项目文档，包含任务目标、开发进度、测试/发布检查和展示材料。
 
 ## 本地环境
 
@@ -134,13 +132,11 @@ uvicorn app.main:app --reload
 - 已添加 `.env.example`。
 - 已更新 `.gitignore`，忽略本地数据库文件，例如 `dev.db`。
 - 已完善 `README.md`，包含功能、启动、LLM 配置、安全注意事项和后续计划。
-- 已新增 `docs/project-showcase.md`，用于项目展示、简历描述和面试讲解。
-- 已创建并维护 `docs/development-progress.md`。
-- 已创建长期任务目标文档：`docs/task-goals.md`。
+- 已将任务目标、开发进度、发布检查和项目展示材料合并到 `docs/project-notes.md`。
 - 已添加后端自动化冒烟测试：`backend/tests/test_smoke.py`。
 - 已添加测试依赖 `pytest`。
-- 已添加发布检查清单：`docs/release-checklist.md`。
 - 已将 FastAPI 启动初始化改为 lifespan。
+- 已完成第一轮项目结构优化：前端静态文件已从 `backend/app/static/` 移到顶层 `frontend/`，后端继续由 FastAPI 托管页面。
 
 ## 已验证内容
 
@@ -149,10 +145,15 @@ uvicorn app.main:app --reload
 ```text
 GET /api/health     -> 200 {"status": "ok"}
 GET /api/db/status  -> 200 {"status": "ok"}
-conda run -n ai-interview-agent python -m pytest backend/tests -> 3 passed
+conda run -n ai-interview-agent python -m pytest backend/tests -> 4 passed
+node --check frontend\app.js -> passed
+GET /                  -> 200
+GET /static/app.js     -> 200
+GET /static/styles.css -> 200
 ```
 
 用户已确认 `http://127.0.0.1:8000/docs` 可以打开并看到 FastAPI Swagger UI。
+用户已确认前后端目录拆分后，`http://127.0.0.1:8000/` 页面测试没有大问题。
 
 ## 当前文件结构概览
 
@@ -161,18 +162,40 @@ ai-interview-agent/
   backend/
     app/
       api/
+        config_status.py
         db_status.py
         health.py
+        interview.py
+        practice.py
+        questions.py
       core/
         config.py
+      data/
+        seed_questions.json
       db/
         session.py
       models/
+        interview.py
         question.py
+      schemas/
+        interview.py
+        practice.py
+        question.py
+      services/
+        llm_scoring.py
+        scoring.py
+        scoring_service.py
+        seed_questions.py
       main.py
+    tests/
+      test_smoke.py
     requirements.txt
+  frontend/
+    index.html
+    app.js
+    styles.css
   docs/
-    development-progress.md
+    project-notes.md
   .env.example
   .gitignore
   AGENTS.md
@@ -182,26 +205,28 @@ ai-interview-agent/
 
 ## 下一步计划
 
-下一步建议优化前端体验：
+下一步建议围绕“题库质量 + 练习体验”推进，而不是单纯堆题量：
 
-- 检查 `http://127.0.0.1:8000/` 页面布局和交互。
-- 下一步建议手动验证千问 3.7 Plus 真实评分效果，并优化评分提示词和结构化输出。
-- 后续继续优化移动端效果、流程分步引导和题库管理细节。
-- 下一步可在用户提供 API Key 后验证真实 LLM 评分效果，并优化提示词。
-- 后续需求变化时同步更新 `docs/task-goals.md`。
-- 如当前原生前端难以继续扩展，再考虑切换到 Next.js 独立前端。
-- 更新 `docs/development-progress.md` 和 `AGENTS.md`。
-- 需要展示/面试材料时同步更新 `docs/project-showcase.md`。
-
-后续计划：
-
-- 接入真实 LLM。
-- 添加模拟面试流程 API。
-- 添加前端页面。
-- 添加 RAG 和向量库 Chroma。
-- 添加 LangGraph 面试工作流。
-- 完善 README 和演示数据。
-- MVP 跑通后打标签 `v0.1.0`。
+1. 题库结构增强：
+   - 为题目增加标签能力，例如 `基础概念`、`项目经验`、`排查问题`、`系统设计`、`源码/原理`。
+   - 后端题目模型、Schema、CRUD 和筛选接口同步支持标签。
+   - 前端增加标签筛选，让用户能更快找到想练的题。
+2. 高质量扩充题库：
+   - 在现有 10 个分类基础上补充更贴近真实面试的题。
+   - 优先补充 Python 并发、FastAPI 中间件、MySQL 索引失效、Redis 缓存一致性、Docker 部署排错、系统设计取舍等方向。
+   - 同时补充单选题和多选题，避免题库继续偏向问答题。
+3. 练习反馈增强：
+   - 评分结果增加“下一步练习建议”，根据得分、分类、难度和评分点覆盖情况提示用户继续练什么。
+   - LLM 模式下优化提示词，让输出更稳定、更像面试官反馈。
+4. 前端代码结构继续整理：
+   - 将 `frontend/app.js` 逐步拆成 API 请求、状态管理、渲染组件和工具函数等模块。
+   - 保持当前无需前端构建工具，除非静态页面继续膨胀到难以维护。
+5. 后续中长期计划：
+   - 验证千问 3.7 Plus 真实评分质量。
+   - 添加 RAG 和向量库 Chroma。
+   - 添加 LangGraph 面试工作流。
+   - 完善 README、展示材料和发布检查。
+   - MVP 稳定后打标签 `v0.1.0`。
 
 ## 注意事项
 
@@ -213,3 +238,12 @@ ai-interview-agent/
 - 用户主要负责测试前端页面和交互。
 - 用户希望开发速度比早期更快一点，但仍要保证质量。
 - 用户希望文档使用中文，方便自己阅读。
+- 文档数量已收敛：除 `README.md` 和独立的 `AGENTS.md` 外，`docs/` 下主要维护 `project-notes.md`。
+
+## 当前架构约定
+
+- 后端代码放在 `backend/`，FastAPI 应用入口为 `backend/app/main.py`。
+- 前端静态页面放在顶层 `frontend/`，当前包括 `index.html`、`app.js` 和 `styles.css`。
+- 当前阶段仍由 FastAPI 托管前端，访问 `http://127.0.0.1:8000/` 会返回 `frontend/index.html`。
+- 静态资源路径保持为 `/static/app.js` 和 `/static/styles.css`，但实际文件来源是顶层 `frontend/` 目录。
+- 后续如果原生前端继续变复杂，再考虑升级为独立前端工程，例如 Vite 或 Next.js；在此之前保持轻量结构，避免过早引入复杂构建链。
