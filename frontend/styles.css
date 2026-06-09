@@ -228,9 +228,20 @@ input {
   padding: 0 10px;
 }
 
-.question-form {
+.question-form,
+.resume-form {
   display: grid;
   gap: 14px;
+}
+
+.resume-history-panel {
+  border-top: 1px solid #dbe3ea;
+  margin-top: 18px;
+  padding-top: 16px;
+}
+
+.compact-header {
+  margin-bottom: 10px;
 }
 
 .form-actions {
@@ -269,6 +280,10 @@ input {
 
 .view.active {
   display: grid;
+}
+
+.view.single-view {
+  grid-template-columns: 0.8fr 1.2fr;
 }
 
 .panel-header {
@@ -529,6 +544,21 @@ textarea {
   padding: 14px;
 }
 
+.error-card {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  color: #9a3412;
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.error-card p {
+  color: #7c2d12;
+  line-height: 1.65;
+}
+
 .loading-dot {
   animation: pulse 1s ease-in-out infinite;
   background: #2563eb;
@@ -757,6 +787,226 @@ textarea {
   padding-left: 18px;
 }
 
+.resume-summary-box {
+  background: #f8fafc;
+  border-color: #dbe3ea;
+}
+
+.resume-summary-box p {
+  color: #334155;
+  line-height: 1.75;
+}
+
+.resume-headline {
+  background: #f0fdf4;
+}
+
+.resume-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.resume-grid section {
+  background: white;
+  border: 1px solid #dbe3ea;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.resume-history {
+  display: grid;
+  gap: 10px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.resume-job-list {
+  display: grid;
+  gap: 10px;
+}
+
+.resume-job-card {
+  background: #f8fafc;
+  border: 1px solid #dbe3ea;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.job-rank-meta {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  color: #3730a3;
+  font-size: 13px;
+  font-weight: 800;
+  justify-self: start;
+  padding: 4px 10px;
+}
+
+.job-match-section {
+  background: white;
+  border: 1px solid #dbe3ea;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.evidence-list,
+.practice-plan-list {
+  display: grid;
+  gap: 8px;
+}
+
+.evidence-item,
+.practice-plan-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.evidence-item span,
+.practice-plan-item span {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.evidence-item p,
+.practice-plan-item p {
+  color: #475569;
+  line-height: 1.65;
+}
+
+.practice-plan-item {
+  grid-template-columns: auto auto 1fr;
+}
+
+.practice-plan-item p {
+  grid-column: 1 / -1;
+}
+
+.compact-analysis {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.vector-index-box {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #dbe3ea;
+  border-radius: 6px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr auto;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.job-list {
+  display: grid;
+  gap: 12px;
+  max-height: 620px;
+  overflow: auto;
+}
+
+.job-search-form {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr auto auto;
+  margin-bottom: 12px;
+}
+
+.job-item {
+  background: #f8fafc;
+  border: 1px solid #dbe3ea;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.job-item-header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.job-item-header a {
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.job-item p {
+  line-height: 1.6;
+}
+
+.job-text-section {
+  display: grid;
+  gap: 4px;
+}
+
+.job-text-section strong {
+  color: #334155;
+  font-size: 13px;
+}
+
+.job-text-body {
+  line-height: 1.65;
+  margin: 0;
+  padding-right: 4px;
+  white-space: normal;
+}
+
+.resume-history-item {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #dbe3ea;
+  border-radius: 6px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr auto;
+  padding: 12px;
+}
+
+.resume-history-item p {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.resume-history-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pill-list span {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  color: #3730a3;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 5px 10px;
+}
+
 .report-score {
   color: #1d4ed8;
   font-size: 30px;
@@ -789,10 +1039,12 @@ textarea {
   .analysis-grid,
   .feedback-grid,
   .form-grid,
-  .interview-config,
-  .interview-summary-card,
-  .overview-grid,
-  .report-metrics,
+    .interview-config,
+    .interview-summary-card,
+    .job-search-form,
+    .overview-grid,
+    .resume-grid,
+    .report-metrics,
   .view.active {
     grid-template-columns: 1fr;
   }

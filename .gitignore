@@ -49,6 +49,7 @@ coverage.xml
 *.py.cover
 .hypothesis/
 .pytest_cache/
+.pytest_tmp*/
 cover/
 
 # Translations
@@ -63,6 +64,7 @@ db.sqlite3-journal
 dev.db
 *.sqlite
 *.sqlite3
+backend/vector_store/
 
 # Flask stuff:
 instance/

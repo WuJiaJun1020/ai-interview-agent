@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-4o-mini"
     llm_enable_thinking: bool = False
+    llm_timeout_seconds: float = 120
 
     model_config = SettingsConfigDict(
         env_file=(BACKEND_DIR.parent / ".env", BACKEND_DIR / ".env"),

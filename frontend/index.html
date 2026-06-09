@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Interview Agent</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260609-rag-7" />
   </head>
   <body>
     <div class="app-shell">
@@ -61,6 +61,8 @@
         <section class="tabs" aria-label="功能切换">
           <button class="tab active" data-tab="practice" type="button">题库练习</button>
           <button class="tab" data-tab="interview" type="button">模拟面试</button>
+          <button class="tab" data-tab="resume" type="button">简历分析</button>
+          <button class="tab" data-tab="jobs" type="button">岗位知识库</button>
         </section>
 
         <section id="practiceView" class="view active">
@@ -198,9 +200,76 @@
             <div id="interviewResult" class="result-box empty">这里会显示每题反馈和最终报告。</div>
           </div>
         </section>
+
+        <section id="resumeView" class="view single-view">
+          <div class="panel">
+            <div class="panel-header">
+              <h2>简历分析</h2>
+              <span class="meta">支持 PDF / DOCX，结果会保存在历史记录中</span>
+            </div>
+            <form id="resumeForm" class="resume-form">
+              <div class="field">
+                <label for="resumeFile">简历文件</label>
+                <input id="resumeFile" name="resumeFile" type="file" accept="application/pdf,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required />
+              </div>
+              <button type="submit">分析简历</button>
+            </form>
+            <div class="resume-history-panel">
+              <div class="panel-header compact-header">
+                <h2>历史结果</h2>
+                <span class="meta">无需重复上传</span>
+              </div>
+              <div id="resumeHistory" class="resume-history empty">正在加载历史记录...</div>
+            </div>
+          </div>
+
+          <div class="panel result-panel">
+            <h2>分析结果</h2>
+            <div id="resumeResult" class="result-box empty">上传 PDF 或 DOCX 简历后，这里会分阶段显示文字提取进度、分析进度和最终建议。</div>
+          </div>
+        </section>
+
+        <section id="jobsView" class="view single-view">
+          <div class="panel">
+            <div class="panel-header">
+              <h2>岗位 JSONL 导入</h2>
+              <span class="meta">上传你已采集好的 JSONL 文件，按内容哈希自动去重</span>
+            </div>
+            <form id="jobCollectForm" class="question-form">
+              <div class="field">
+                <label for="jobJsonlFile">岗位数据文件</label>
+                <input id="jobJsonlFile" name="jobJsonlFile" type="file" accept=".jsonl,application/jsonl,text/plain,application/x-ndjson" required />
+              </div>
+              <button type="submit">导入岗位数据</button>
+            </form>
+            <div id="jobCollectResult" class="result-box empty">导入完成后会显示解析条数、新增条数、跳过条数和错误信息。</div>
+            <div class="vector-index-box">
+              <div>
+                <strong>岗位向量索引</strong>
+                <p id="jobVectorStatus" class="meta">正在读取索引状态...</p>
+              </div>
+              <div class="inline-actions">
+                <button id="rebuildJobVectorBtn" class="secondary-btn" type="button">重建索引</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel result-panel">
+            <div class="panel-header">
+              <h2>岗位数据</h2>
+              <span id="jobListMeta" class="meta">加载中</span>
+            </div>
+            <form id="jobSearchForm" class="job-search-form">
+              <input id="jobSearchInput" name="jobSearchInput" placeholder="搜索岗位、公司、技能或 JD 关键词" />
+              <button class="secondary-btn" type="submit">搜索</button>
+              <button id="clearJobSearchBtn" class="ghost-btn" type="button">重置</button>
+            </form>
+            <div id="jobList" class="job-list empty">正在加载岗位数据...</div>
+          </div>
+        </section>
       </main>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script type="module" src="/static/app.js?v=20260609-rag-7"></script>
   </body>
 </html>

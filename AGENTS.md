@@ -27,6 +27,7 @@
 
 - `AGENTS.md`：给 Codex 读取的项目上下文，保持独立。
 - `docs/project-notes.md`：合并后的项目文档，包含任务目标、开发进度、测试/发布检查和展示材料。
+- `docs/handoff.md`：当前对话归档交接摘要，方便新对话快速接手。
 
 ## 本地环境
 
@@ -55,6 +56,9 @@ backend/requirements.txt
 - Pydantic Settings
 - HTTPX
 - SQLAlchemy
+- python-multipart
+- pypdf
+- python-docx
 
 ## 启动方式
 
@@ -137,6 +141,26 @@ uvicorn app.main:app --reload
 - 已添加测试依赖 `pytest`。
 - 已将 FastAPI 启动初始化改为 lifespan。
 - 已完成第一轮项目结构优化：前端静态文件已从 `backend/app/static/` 移到顶层 `frontend/`，后端继续由 FastAPI 托管页面。
+- 已合并本地 SQLite 数据库到 `backend/dev.db`，根目录不再保留活动 `dev.db`。
+- 已完成第二轮前端结构优化：`frontend/app.js` 已拆分为 ES Modules，包含 API 请求、状态、渲染和工具函数模块。
+- 已新增 PDF/DOCX 简历分析 MVP：上传文件、提取文本、保存简历记录、生成岗位画像和练习建议。
+- 简历分析前端会分开显示“文字提取”和“岗位分析”进度，降低等待焦虑。
+- 简历分析历史结果已保存，可在“历史结果”里直接查看，无需重复上传同一份简历。
+- 简历分析默认使用 mock 规则；`SCORING_MODE=llm` 且配置 Key 后会尝试 LLM 分析，失败回退 mock。
+- 已修复简历分析前端 8 秒超时导致的 `signal is aborted without reason`：分析请求改为更长超时，失败时右侧结果区会显示错误卡片，不再停留在“文字提取完成，正在生成岗位画像”。
+- 已为 LLM 调用增加 `LLM_TIMEOUT_SECONDS` 配置，默认 120 秒；简历分析和练习评分的真实 LLM 请求超时后会按现有逻辑回退 mock。
+- 简历分析历史结果支持删除，会同时移除该简历文本和关联分析结果；LLM 分析等待阶段会轮播展示岗位检索、证据整理和 LLM 生成等过程提示。
+- 已新增岗位知识库 MVP：上传已采集好的 JSONL 岗位数据，保存岗位名称、公司、技能、要求和来源 URL。
+- 自动公开网页采集效果不稳定，已退场；当前采用用户自有采集脚本产出的 JSONL 导入。
+- 岗位导入按内容哈希去重，重复导入同一份 JSONL 不会重复插入。
+- 已接入 Chroma 本地持久化岗位向量库：`backend/vector_store/chroma/`，collection 为 `job_posts`，目录已加入 `.gitignore`。
+- Chroma 使用项目内置哈希 embedding 函数，避免本地首次运行时额外下载模型；旧的 `backend/vector_store/job_index.json` 本地哈希索引保留为兜底。
+- 简历分析已接入岗位知识库推荐：先用 Chroma 召回 Top 8 真实 JD，再压缩候选岗位上下文，LLM 模式下在同一次简历分析调用中结合简历输出 Top 3；知识库不足或 LLM 不可用时回退规则排序/自由推荐。
+- LLM 精排结果会保存并展示精排排名、匹配等级、推荐理由、能力缺口和简历优化建议。
+- 已增强岗位知识库推荐解释：每个匹配岗位会返回命中信号、JD 证据片段、推荐理由和能力缺口。
+- 已清理岗位推荐中已不再展示的 `practice_plan` 字段，岗位推荐现在聚焦推荐理由、能力缺口、命中信号和 JD 证据片段。
+- 岗位知识库页面已支持关键词搜索，可按岗位名、公司、技能、城市、岗位描述和岗位要求筛选。
+- 当前 RAG 岗位检索优先使用 Chroma；如果 `chromadb` 不可用或查询失败，会自动回退本地哈希词袋索引，避免简历分析不可用。
 
 ## 已验证内容
 
@@ -145,10 +169,24 @@ uvicorn app.main:app --reload
 ```text
 GET /api/health     -> 200 {"status": "ok"}
 GET /api/db/status  -> 200 {"status": "ok"}
-conda run -n ai-interview-agent python -m pytest backend/tests -> 4 passed
+python -m pytest backend/tests --basetemp .pytest_tmp -> 6 passed
 node --check frontend\app.js -> passed
+node --check frontend\api.js -> passed
+node --check frontend\render.js -> passed
+node --check frontend\state.js -> passed
+node --check frontend\utils.js -> passed
+python -m pytest backend/tests --basetemp .pytest_tmp_resume_fix2 -> 6 passed
+python -m pytest backend/tests --basetemp .pytest_tmp_resume_delete -> 6 passed
+python -m pytest backend/tests --basetemp .pytest_tmp_chroma_final -> 6 passed
+python -m pytest backend/tests --basetemp .pytest_tmp_rerank -> 7 passed
+python -m pytest backend/tests --basetemp .pytest_tmp_single_llm -> 7 passed
+python -m pytest backend/tests --basetemp .pytest_tmp_cleanup -> 7 passed
+Chroma 岗位索引重建验证 -> 180 个岗位 / 540 个片段，backend=chroma，collection=job_posts
+DOCX 简历上传接口验证 -> upload 201，analyze 201，匹配 6 个岗位
 GET /                  -> 200
 GET /static/app.js     -> 200
+GET /static/api.js     -> 200
+GET /static/render.js  -> 200
 GET /static/styles.css -> 200
 ```
 
@@ -166,8 +204,10 @@ ai-interview-agent/
         db_status.py
         health.py
         interview.py
+        jobs.py
         practice.py
         questions.py
+        resumes.py
       core/
         config.py
       data/
@@ -176,13 +216,20 @@ ai-interview-agent/
         session.py
       models/
         interview.py
+        job.py
         question.py
+        resume.py
       schemas/
         interview.py
+        job.py
         practice.py
         question.py
+        resume.py
       services/
         llm_scoring.py
+        job_importer.py
+        resume_analysis.py
+        resume_text.py
         scoring.py
         scoring_service.py
         seed_questions.py
@@ -193,7 +240,11 @@ ai-interview-agent/
   frontend/
     index.html
     app.js
+    api.js
+    render.js
+    state.js
     styles.css
+    utils.js
   docs/
     project-notes.md
   .env.example
@@ -219,11 +270,13 @@ ai-interview-agent/
    - 评分结果增加“下一步练习建议”，根据得分、分类、难度和评分点覆盖情况提示用户继续练什么。
    - LLM 模式下优化提示词，让输出更稳定、更像面试官反馈。
 4. 前端代码结构继续整理：
-   - 将 `frontend/app.js` 逐步拆成 API 请求、状态管理、渲染组件和工具函数等模块。
-   - 保持当前无需前端构建工具，除非静态页面继续膨胀到难以维护。
+   - 已完成第一轮拆分：API 请求、状态管理、渲染组件和工具函数已拆成独立 ES Modules。
+   - 后续继续按功能边界拆分练习流、模拟面试流和题库管理逻辑。
 5. 后续中长期计划：
+   - 为简历制作/优化增加 txt/md 素材上传和 LLM 生成简历功能。
+   - 继续优化岗位知识库推荐质量，后续可将当前哈希 embedding 升级为 DashScope/OpenAI embedding API。
    - 验证千问 3.7 Plus 真实评分质量。
-   - 添加 RAG 和向量库 Chroma。
+   - 完善 Chroma/RAG 工作流，增加更细粒度的 chunk 策略、重排和检索评估。
    - 添加 LangGraph 面试工作流。
    - 完善 README、展示材料和发布检查。
    - MVP 稳定后打标签 `v0.1.0`。
@@ -234,16 +287,21 @@ ai-interview-agent/
 - API Key 只应由用户自己保存在本地 `.env` 中。
 - 用户曾提供千问 API Key，已写入本地忽略文件 `.env`，禁止提交、打印或写入文档。
 - 当前默认数据库文件为 `backend/dev.db`，应保持被 Git 忽略。
+- 开发阶段本地验证数据不重要，默认不额外保留数据库备份。
+- 简历分析上传的是本地 PDF/DOCX，当前保存提取出的文本和分析结果到本地 SQLite；数据库不提交到 Git。
+- 真实 LLM 调用默认 `LLM_TIMEOUT_SECONDS=120`；如果网络或模型响应慢，后端会超时并由业务逻辑回退 mock，前端也会展示可读错误，不应让结果区一直处于 pending。
+- 岗位知识库当前通过 JSONL 导入，不在应用内做网页爬取；后续如恢复采集，必须尊重 robots.txt、限速和来源记录，不要绕过登录、验证码或平台反爬。
 - 后端可自动测试的内容，Codex 先自测通过再交付。
 - 用户主要负责测试前端页面和交互。
 - 用户希望开发速度比早期更快一点，但仍要保证质量。
 - 用户希望文档使用中文，方便自己阅读。
 - 文档数量已收敛：除 `README.md` 和独立的 `AGENTS.md` 外，`docs/` 下主要维护 `project-notes.md`。
+- 当前归档交接信息已写入 `docs/handoff.md`；新对话应先读 `AGENTS.md`，再读 `docs/handoff.md`。
 
 ## 当前架构约定
 
 - 后端代码放在 `backend/`，FastAPI 应用入口为 `backend/app/main.py`。
-- 前端静态页面放在顶层 `frontend/`，当前包括 `index.html`、`app.js` 和 `styles.css`。
+- 前端静态页面放在顶层 `frontend/`，当前包括 `index.html`、`styles.css` 和若干原生 ES Module 脚本。
 - 当前阶段仍由 FastAPI 托管前端，访问 `http://127.0.0.1:8000/` 会返回 `frontend/index.html`。
-- 静态资源路径保持为 `/static/app.js` 和 `/static/styles.css`，但实际文件来源是顶层 `frontend/` 目录。
+- 静态资源路径保持为 `/static/...`，实际文件来源是顶层 `frontend/` 目录。
 - 后续如果原生前端继续变复杂，再考虑升级为独立前端工程，例如 Vite 或 Next.js；在此之前保持轻量结构，避免过早引入复杂构建链。

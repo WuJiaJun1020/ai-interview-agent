@@ -15,7 +15,11 @@ def score_answer_with_llm(
     if not settings.llm_api_key:
         raise RuntimeError("OPENAI_API_KEY or DASHSCOPE_API_KEY is not configured")
 
-    client = OpenAI(api_key=settings.llm_api_key, base_url=settings.openai_base_url)
+    client = OpenAI(
+        api_key=settings.llm_api_key,
+        base_url=settings.openai_base_url,
+        timeout=settings.llm_timeout_seconds,
+    )
     request_payload = {
         "model": settings.openai_model,
         "messages": [

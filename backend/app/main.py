@@ -10,8 +10,10 @@ from app.api.config_status import router as config_status_router
 from app.api.db_status import router as db_status_router
 from app.api.health import router as health_router
 from app.api.interview import router as interview_router
+from app.api.jobs import router as jobs_router
 from app.api.practice import router as practice_router
 from app.api.questions import router as questions_router
+from app.api.resumes import router as resumes_router
 from app.core.config import settings
 from app.db.session import init_db
 
@@ -33,6 +35,8 @@ app.include_router(db_status_router)
 app.include_router(questions_router)
 app.include_router(practice_router)
 app.include_router(interview_router)
+app.include_router(resumes_router)
+app.include_router(jobs_router)
 
 
 @app.get("/")

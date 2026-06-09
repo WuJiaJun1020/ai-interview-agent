@@ -1,12 +1,46 @@
-let practiceQuestion = null;
-let interviewSessionId = null;
-let interviewFinished = false;
-let busyCount = 0;
-let questionCache = [];
-let editingQuestionId = null;
-let interviewLogs = [];
-
-const $ = (id) => document.getElementById(id);
+import {
+  analyzeUploadedResume,
+  deleteQuestionRequest,
+  deleteResumeHistoryRequest,
+  getConfigStatus,
+  getInterviewReport,
+  getPracticeQuestion,
+  getResumeResult,
+  importJobsJsonl,
+  listResumeHistory,
+  listJobs,
+  listQuestions,
+  rebuildJobVectorIndex,
+  saveQuestionRequest,
+  seedQuestionBank,
+  startInterviewSession,
+  submitInterviewAnswerRequest,
+  uploadResumeDocument,
+} from "./api.js?v=20260609-rag-7";
+import {
+  renderFilterOptions,
+  renderInterviewLogs,
+  renderJobCollectResult,
+  renderJobList,
+  renderJobPending,
+  renderJobVectorStatus,
+  renderPracticePending,
+  renderPracticeResult,
+  renderQuestion,
+  renderQuestionCount,
+  renderQuestionList,
+  renderResumeError,
+  renderResumeHistory,
+  renderResumePending,
+  renderResumeResult,
+  updateAnswerMeta,
+  updateFilterSummary,
+  updateInterviewConfigSummary,
+  updateInterviewProgress,
+  updatePracticeSummary,
+} from "./render.js?v=20260609-rag-7";
+import { state } from "./state.js?v=20260609-rag-7";
+import { $, escapeHtml, isChoiceType, parseError } from "./utils.js?v=20260609-rag-7";
 
 function selectedFilters() {
   return {
@@ -22,70 +56,37 @@ function selectedInterviewConfig() {
   };
 }
 
-function updateInterviewConfigSummary() {
-  const config = selectedInterviewConfig();
-  const summary = [
-    `分类：${config.category || "全部"}`,
-    `难度：${config.difficulty || "全部"}`,
-    `题数：${config.total_questions}`,
-  ].join(" · ");
-  $("interviewConfigSummary").textContent = summary;
-  $("interviewSummaryDetail").textContent = summary;
-}
-
-function updateFilterSummary() {
-  const filters = selectedFilters();
-  $("filterSummary").textContent = `${filters.category || "全部分类"} · ${filters.difficulty || "全部难度"}`;
-}
-
-function updatePracticeSummary() {
-  if (!practiceQuestion) {
-    $("practiceSummary").textContent = "未选择题目";
-    $("practiceSummaryDetail").textContent = "可以从题库列表选择，或随机抽题。";
-    return;
-  }
-
-  $("practiceSummary").textContent = `#${practiceQuestion.id} ${practiceQuestion.category}`;
-  $("practiceSummaryDetail").textContent = `${practiceQuestion.difficulty} · ${practiceQuestion.question}`;
-}
-
-function updateAnswerMeta(textareaId, metaId) {
-  const value = $(textareaId).value.trim();
-  const count = value ? value.length : 0;
-  $(metaId).textContent = `${count} 字`;
-}
-
 function syncCreateFormDefaults() {
   if ($("category").value && !$("newCategory").value) $("newCategory").value = $("category").value;
   if ($("difficulty").value && !$("newDifficulty").value) $("newDifficulty").value = $("difficulty").value;
-}
-
-function queryString(filters) {
-  const params = new URLSearchParams();
-  if (filters.category) params.set("category", filters.category);
-  if (filters.difficulty) params.set("difficulty", filters.difficulty);
-  return params.toString();
-}
-
-async function request(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Request failed: ${response.status}`);
-  }
-  if (response.status === 204) return null;
-  return response.json();
 }
 
 function setStatus(text) {
   $("statusText").textContent = text;
 }
 
+function setBusy(isBusy) {
+  state.busyCount += isBusy ? 1 : -1;
+  state.busyCount = Math.max(state.busyCount, 0);
+  document.querySelectorAll("button").forEach((button) => {
+    button.disabled = state.busyCount > 0;
+  });
+}
+
+async function runAction(action, busyText) {
+  setBusy(true);
+  if (busyText) setStatus(busyText);
+  try {
+    await action();
+  } catch (error) {
+    setStatus(parseError(error.message));
+  } finally {
+    setBusy(false);
+  }
+}
+
 async function refreshConfigStatus() {
-  const config = await request("/api/config/status");
+  const config = await getConfigStatus();
   const target = $("scoringMode");
   target.classList.remove("muted-pill", "warning-pill", "success-pill");
 
@@ -104,361 +105,50 @@ async function refreshConfigStatus() {
   target.textContent = "评分：mock";
 }
 
-function setBusy(isBusy) {
-  busyCount += isBusy ? 1 : -1;
-  busyCount = Math.max(busyCount, 0);
-  document.querySelectorAll("button").forEach((button) => {
-    button.disabled = busyCount > 0;
-  });
-}
-
-async function runAction(action, busyText) {
-  setBusy(true);
-  if (busyText) setStatus(busyText);
-  try {
-    await action();
-  } catch (error) {
-    setStatus(parseError(error.message));
-  } finally {
-    setBusy(false);
-  }
-}
-
-function parseError(message) {
-  if (message.includes("No question found")) return "没有找到符合条件的题目，请先初始化题库或调整筛选条件";
-  if (message.includes("Interview session is finished")) return "本轮面试已结束，请开始新的面试";
-  if (message.includes("Failed to fetch")) return "无法连接后端，请确认服务已启动";
-  return message;
-}
-
 async function refreshQuestionCount() {
-  const qs = queryString(selectedFilters());
-  const questions = await request(`/api/questions${qs ? `?${qs}` : ""}`);
-  questionCache = questions;
-  $("questionCount").textContent = `题库：${questions.length} 道`;
-  $("librarySummary").textContent = questions.length ? `当前筛选下有 ${questions.length} 道题` : "当前筛选下没有题目";
-  updateFilterSummary();
+  const filters = selectedFilters();
+  const [questions, allQuestions] = await Promise.all([
+    listQuestions(filters),
+    listQuestions(),
+  ]);
+  state.questionCache = questions;
+  renderQuestionCount(questions, allQuestions);
   renderQuestionList(questions);
-  await refreshFilterOptions();
-  updateFilterSummary();
+  renderFilterOptions(allQuestions);
+  updateFilterSummary(selectedFilters());
 }
 
-function orderedDifficulties(difficulties) {
-  const order = ["初级", "中级", "高级"];
-  return difficulties.sort((a, b) => {
-    const aIndex = order.indexOf(a);
-    const bIndex = order.indexOf(b);
-    if (aIndex !== -1 || bIndex !== -1) {
-      return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
-    }
-    return a.localeCompare(b, "zh-CN");
-  });
+async function seedQuestions() {
+  const result = await seedQuestionBank();
+  setStatus(result.created > 0 ? `已新增 ${result.created} 道题` : "题库已是最新");
+  await refreshQuestionCount();
 }
 
-function summarizeQuestionBank(allQuestions, filteredCount) {
-  const categories = [...new Set(allQuestions.map((question) => question.category))];
-  const difficulties = orderedDifficulties([...new Set(allQuestions.map((question) => question.difficulty))]);
-  const base = filteredCount ? `当前筛选下有 ${filteredCount} 道题` : "当前筛选下没有题目";
-  if (!allQuestions.length) return base;
-  return `${base}；全库 ${allQuestions.length} 道，覆盖 ${categories.length} 类 / ${difficulties.length} 个难度`;
-}
-
-async function refreshFilterOptions() {
-  const currentCategory = $("category").value;
-  const currentDifficulty = $("difficulty").value;
-  const allQuestions = await request("/api/questions");
-  const categories = [...new Set(allQuestions.map((question) => question.category))].sort();
-  const difficulties = orderedDifficulties([...new Set(allQuestions.map((question) => question.difficulty))]);
-
-  $("category").innerHTML = [
-    '<option value="">全部</option>',
-    ...categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`),
-  ].join("");
-  $("category").value = categories.includes(currentCategory) ? currentCategory : "";
-
-  $("difficulty").innerHTML = [
-    '<option value="">全部</option>',
-    ...difficulties.map((difficulty) => `<option value="${escapeHtml(difficulty)}">${escapeHtml(difficulty)}</option>`),
-  ].join("");
-  $("difficulty").value = difficulties.includes(currentDifficulty) ? currentDifficulty : "";
-
-  $("categoryOptions").innerHTML = categories
-    .map((category) => `<option value="${escapeHtml(category)}"></option>`)
-    .join("");
-  $("difficultyOptions").innerHTML = difficulties
-    .map((difficulty) => `<option value="${escapeHtml(difficulty)}"></option>`)
-    .join("");
-  $("librarySummary").textContent = summarizeQuestionBank(allQuestions, questionCache.length);
-}
-
-function renderQuestionList(questions) {
-  const list = $("questionList");
-  $("questionListMeta").textContent = `${questions.length} 道`;
-
-  if (!questions.length) {
-    list.classList.add("empty");
-    list.innerHTML = `
-      <div class="empty-state">
-        <strong>当前筛选下还没有题目</strong>
-        <p>可以点击“初始化题库”，或在下方新增一道符合这个分类和难度的题目。</p>
-      </div>
-    `;
-    return;
-  }
-
-  list.classList.remove("empty");
-  list.innerHTML = questions
-    .map(
-      (question) => `
-        <article class="question-item ${question.id === practiceQuestion?.id ? "selected" : ""} ${question.id === editingQuestionId ? "editing" : ""}">
-          <div>
-            <div class="question-item-title">${escapeHtml(question.question)}</div>
-            <div class="question-item-tags">#${question.id} · ${escapeHtml(question.category)} · ${escapeHtml(question.difficulty)} · ${questionTypeLabel(question.question_type)}</div>
-          </div>
-          <div class="question-item-actions">
-            <button class="small-btn" type="button" data-practice-id="${question.id}">练这题</button>
-            <button class="small-btn secondary-btn" type="button" data-edit-id="${question.id}">编辑</button>
-            <button class="small-btn danger-btn" type="button" data-delete-id="${question.id}">删除</button>
-          </div>
-        </article>
-      `,
-    )
-    .join("");
-}
-
-function renderQuestion(target, question) {
-  target.classList.remove("empty");
-  target.innerHTML = `
-    <div class="question-card-meta">
-      <span>#${question.id}</span>
-      <span>${escapeHtml(question.category)}</span>
-      <span>${escapeHtml(question.difficulty)}</span>
-      <span>${questionTypeLabel(question.question_type)}</span>
-    </div>
-    <p class="question-card-title">${escapeHtml(question.question)}</p>
-    <div class="rubric-box">
-      <strong>评分点</strong>
-      ${renderPointList(question.rubric)}
-    </div>
-  `;
-}
-
-function questionTypeLabel(type) {
-  if (type === "multiple_choice") return "多选题";
-  return type === "single_choice" ? "单选题" : "问答题";
-}
-
-function renderPracticeResult(result) {
-  const target = $("practiceResult");
-  const source = scoreSourceLabel(result.source);
-  target.classList.remove("empty");
-  target.innerHTML = `
-    <div class="score-card">
-      <div class="score">${result.score}</div>
-      <div>
-        <div class="score-card-header">
-          <strong>本次评分</strong>
-          <span class="source-badge ${source.className}">${source.label}</span>
-        </div>
-        <p>${escapeHtml(result.feedback)}</p>
-      </div>
-    </div>
-    ${renderAnalysisSections(result)}
-    <div class="feedback-grid">
-      <div>
-        <strong>已覆盖</strong>
-        ${renderPointList(result.matched_rubric)}
-      </div>
-      <div>
-        <strong>待补充</strong>
-        ${renderPointList(result.missing_rubric)}
-      </div>
-    </div>
-    <hr />
-    <strong>参考答案</strong>
-    <p>${escapeHtml(result.standard_answer)}</p>
-  `;
-}
-
-function renderPracticePending(message) {
-  const target = $("practiceResult");
-  target.classList.remove("empty");
-  target.innerHTML = `
-    <div class="pending-card">
-      <div class="loading-dot"></div>
-      <div>
-        <strong>正在评分</strong>
-        <p>${escapeHtml(message)}</p>
-      </div>
-    </div>
-  `;
-}
-
-function renderPointList(items) {
-  if (!items.length) return '<p class="meta">暂无</p>';
-  return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
-}
-
-function scoreSourceLabel(source) {
-  if (source === "llm") return { label: "LLM 评分", className: "source-llm" };
-  return { label: "mock 评分", className: "source-mock" };
-}
-
-function renderAnalysisSections(result) {
-  return `
-    <div class="analysis-grid">
-      <section>
-        <strong>优点</strong>
-        ${renderPointList(result.strengths || [])}
-      </section>
-      <section>
-        <strong>问题</strong>
-        ${renderPointList(result.weaknesses || [])}
-      </section>
-      <section>
-        <strong>建议</strong>
-        ${renderPointList(result.suggestions || [])}
-      </section>
-    </div>
-  `;
-}
-
-function scoreLevel(score) {
-  if (score >= 80) return { label: "表现较好", className: "level-strong" };
-  if (score >= 60) return { label: "基本达标", className: "level-ok" };
-  return { label: "需要加强", className: "level-weak" };
-}
-
-function averageInterviewScore() {
-  if (!interviewLogs.length) return 0;
-  const total = interviewLogs.reduce((sum, item) => sum + item.score, 0);
-  return Math.round((total / interviewLogs.length) * 10) / 10;
-}
-
-function reportNextSteps(averageScore) {
-  if (averageScore >= 80) {
-    return ["尝试提高难度或增加题数", "回答时补充更多项目细节", "练习更强的结构化表达"];
-  }
-  if (averageScore >= 60) {
-    return ["复盘待补充概念", "每题先用 3 点结构作答", "用项目例子支撑结论"];
-  }
-  return ["先复习当前分类基础概念", "参考答案后重新组织回答", "减少一次性选择过多题数"];
-}
-
-function updateInterviewProgress(answeredCount, totalQuestions) {
-  $("interviewProgress").textContent = `${answeredCount}/${totalQuestions}`;
-  const percent = totalQuestions ? Math.round((answeredCount / totalQuestions) * 100) : 0;
-  $("interviewProgressBar").style.width = `${percent}%`;
-  $("interviewSummary").textContent =
-    answeredCount >= totalQuestions && totalQuestions > 0 ? "已完成" : `进行中：${answeredCount}/${totalQuestions}`;
-}
-
-function renderInterviewLogs(report = null) {
-  const target = $("interviewResult");
-  target.classList.remove("empty");
-  const currentAverage = report ? report.average_score : averageInterviewScore();
-  const currentLevel = scoreLevel(currentAverage);
-  const summaryHtml = interviewLogs.length
-    ? `
-      <section class="interview-summary-card">
-        <div>
-          <span class="overview-label">当前平均分</span>
-          <strong>${currentAverage} 分</strong>
-        </div>
-        <div>
-          <span class="overview-label">已完成</span>
-          <strong>${interviewLogs.length} 题</strong>
-        </div>
-        <div>
-          <span class="overview-label">阶段判断</span>
-          <strong class="${currentLevel.className}">${currentLevel.label}</strong>
-        </div>
-      </section>
-    `
-    : "";
-  const logsHtml = interviewLogs
-    .map(
-      (item) => {
-        const level = scoreLevel(item.score);
-        const source = scoreSourceLabel(item.source);
-        return `
-        <article class="interview-card">
-          <div class="interview-card-header">
-            <strong>第 ${item.index} 题</strong>
-            <div class="interview-score-group">
-              <span class="source-badge ${source.className}">${source.label}</span>
-              <span class="score-badge ${level.className}">${level.label}</span>
-              <span class="interview-score">${item.score} 分</span>
-            </div>
-          </div>
-          <p class="meta">你的回答：${escapeHtml(item.answer)}</p>
-          <p>${escapeHtml(item.feedback)}</p>
-          ${renderAnalysisSections(item)}
-          <details class="answer-details">
-            <summary>查看参考答案</summary>
-            <p>${escapeHtml(item.standardAnswer)}</p>
-          </details>
-        </article>
-      `;
-      },
-    )
-    .join("");
-
-  const reportHtml = report
-    ? (() => {
-        const level = scoreLevel(report.average_score);
-        return `
-      <article class="interview-card report-card" id="finalInterviewReport">
-        <div class="interview-card-header">
-          <strong>最终报告</strong>
-          <span class="score-badge ${level.className}">${level.label}</span>
-        </div>
-        <div class="report-metrics">
-          <div>
-            <span class="overview-label">平均分</span>
-            <strong class="report-score">${report.average_score}</strong>
-          </div>
-          <div>
-            <span class="overview-label">完成题数</span>
-            <strong>${report.answered_count}/${report.total_questions}</strong>
-          </div>
-          <div>
-            <span class="overview-label">完成状态</span>
-            <strong>${report.is_finished ? "已完成" : "进行中"}</strong>
-          </div>
-        </div>
-        <div class="recommendation-box">
-          <strong>复习建议</strong>
-          <p>${escapeHtml(report.recommendation)}</p>
-        </div>
-        <div class="recommendation-box">
-          <strong>下一步行动</strong>
-          ${renderPointList(reportNextSteps(report.average_score))}
-        </div>
-      </article>
-    `;
-      })()
-    : "";
-
-  target.innerHTML = `<div class="interview-log">${summaryHtml}${logsHtml || '<p class="meta">还没有提交回答。</p>'}${reportHtml}</div>`;
+async function loadPracticeQuestion() {
+  state.practiceQuestion = await getPracticeQuestion(selectedFilters());
+  renderSelectedPracticeQuestion("已抽取练习题");
 }
 
 function useQuestionForPractice(question) {
-  practiceQuestion = question;
-  renderQuestion($("practiceQuestion"), practiceQuestion);
+  state.practiceQuestion = question;
+  renderSelectedPracticeQuestion("已选择题库中的题目");
+}
+
+function renderSelectedPracticeQuestion(statusText) {
+  renderQuestion($("practiceQuestion"), state.practiceQuestion);
   $("practiceAnswer").value = "";
-  renderAnswerInputForQuestion(practiceQuestion);
+  renderAnswerInputForQuestion(state.practiceQuestion);
   updateAnswerMeta("practiceAnswer", "practiceAnswerMeta");
   $("practiceResult").classList.add("empty");
   $("practiceResult").textContent = "提交答案后显示评分、反馈和参考答案。";
-  $("practiceMeta").textContent = `题目 #${practiceQuestion.id}`;
+  $("practiceMeta").textContent = `题目 #${state.practiceQuestion.id}`;
   updatePracticeSummary();
-  setStatus("已选择题库中的题目");
-  renderQuestionList(questionCache);
+  setStatus(statusText);
+  renderQuestionList(state.questionCache);
 }
 
 function fillQuestionForm(question) {
-  editingQuestionId = question.id;
+  state.editingQuestionId = question.id;
   $("newCategory").value = question.category;
   $("newDifficulty").value = question.difficulty;
   $("newQuestionType").value = question.question_type || "short_answer";
@@ -473,11 +163,11 @@ function fillQuestionForm(question) {
   $("createQuestionBtn").textContent = "保存修改";
   $("cancelEditBtn").hidden = false;
   setStatus(`正在编辑题目 #${question.id}`);
-  renderQuestionList(questionCache);
+  renderQuestionList(state.questionCache);
 }
 
 function resetQuestionForm() {
-  editingQuestionId = null;
+  state.editingQuestionId = null;
   $("questionForm").reset();
   $("questionFormTitle").textContent = "新增题目";
   $("questionFormMeta").textContent = "保存后可直接练习";
@@ -485,57 +175,12 @@ function resetQuestionForm() {
   $("cancelEditBtn").hidden = true;
   toggleQuestionTypeFields();
   syncCreateFormDefaults();
-  renderQuestionList(questionCache);
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-async function seedQuestions() {
-  const result = await request("/api/questions/seed", { method: "POST" });
-  setStatus(result.created > 0 ? `已新增 ${result.created} 道题` : "题库已是最新");
-  await refreshQuestionCount();
-}
-
-async function loadPracticeQuestion() {
-  const qs = queryString(selectedFilters());
-  practiceQuestion = await request(`/api/practice/question${qs ? `?${qs}` : ""}`);
-  renderQuestion($("practiceQuestion"), practiceQuestion);
-  $("practiceAnswer").value = "";
-  renderAnswerInputForQuestion(practiceQuestion);
-  updateAnswerMeta("practiceAnswer", "practiceAnswerMeta");
-  $("practiceResult").classList.add("empty");
-  $("practiceResult").textContent = "提交答案后显示评分、反馈和参考答案。";
-  $("practiceMeta").textContent = `题目 #${practiceQuestion.id}`;
-  updatePracticeSummary();
-  setStatus("已抽取练习题");
+  renderQuestionList(state.questionCache);
 }
 
 async function saveQuestion(event) {
   event.preventDefault();
-  const rubric = $("newRubric")
-    .value.split("\n")
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const payload = {
-    category: $("newCategory").value.trim(),
-    difficulty: $("newDifficulty").value.trim(),
-    question_type: $("newQuestionType").value,
-    question: $("newQuestion").value.trim(),
-    standard_answer: $("newStandardAnswer").value.trim(),
-    rubric,
-    options: $("newOptions")
-      .value.split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean),
-    correct_answer: $("newCorrectAnswer").value.trim() || null,
-  };
+  const payload = buildQuestionPayload();
 
   if (!payload.category || !payload.difficulty || !payload.question || !payload.standard_answer) {
     setStatus("请填写分类、难度、题目和参考答案");
@@ -546,12 +191,8 @@ async function saveQuestion(event) {
     return;
   }
 
-  const saved = await request(editingQuestionId ? `/api/questions/${editingQuestionId}` : "/api/questions", {
-    method: editingQuestionId ? "PUT" : "POST",
-    body: JSON.stringify(payload),
-  });
-
-  const wasEditing = editingQuestionId !== null;
+  const saved = await saveQuestionRequest(state.editingQuestionId, payload);
+  const wasEditing = state.editingQuestionId !== null;
   resetQuestionForm();
   $("category").value = saved.category;
   $("difficulty").value = saved.difficulty;
@@ -560,26 +201,46 @@ async function saveQuestion(event) {
   setStatus(wasEditing ? `已更新题目 #${saved.id}` : `已新增题目 #${saved.id}`);
 }
 
+function buildQuestionPayload() {
+  return {
+    category: $("newCategory").value.trim(),
+    difficulty: $("newDifficulty").value.trim(),
+    question_type: $("newQuestionType").value,
+    question: $("newQuestion").value.trim(),
+    standard_answer: $("newStandardAnswer").value.trim(),
+    rubric: splitLines($("newRubric").value),
+    options: splitLines($("newOptions").value),
+    correct_answer: $("newCorrectAnswer").value.trim() || null,
+  };
+}
+
+function splitLines(value) {
+  return value
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 async function deleteQuestion(questionId) {
-  const question = questionCache.find((item) => item.id === questionId);
+  const question = state.questionCache.find((item) => item.id === questionId);
   const confirmed = window.confirm(`确认删除题目 #${questionId}？\n${question ? question.question : ""}`);
   if (!confirmed) return;
 
-  await request(`/api/questions/${questionId}`, { method: "DELETE" });
-  if (practiceQuestion?.id === questionId) {
-    practiceQuestion = null;
+  await deleteQuestionRequest(questionId);
+  if (state.practiceQuestion?.id === questionId) {
+    state.practiceQuestion = null;
     $("practiceQuestion").classList.add("empty");
     $("practiceQuestion").textContent = "当前练习题已删除，请重新选择题目。";
     $("practiceMeta").textContent = "未开始";
     updatePracticeSummary();
   }
-  if (editingQuestionId === questionId) resetQuestionForm();
+  if (state.editingQuestionId === questionId) resetQuestionForm();
   await refreshQuestionCount();
   setStatus(`已删除题目 #${questionId}`);
 }
 
 async function submitPracticeAnswer() {
-  if (!practiceQuestion) {
+  if (!state.practiceQuestion) {
     setStatus("请先抽一道题");
     return;
   }
@@ -617,19 +278,15 @@ function renderAnswerInputForQuestion(question) {
 }
 
 function getPracticeAnswer() {
-  if (practiceQuestion?.question_type === "single_choice") {
+  if (state.practiceQuestion?.question_type === "single_choice") {
     return document.querySelector('input[name="choiceAnswer"]:checked')?.value || "";
   }
-  if (practiceQuestion?.question_type === "multiple_choice") {
+  if (state.practiceQuestion?.question_type === "multiple_choice") {
     return [...document.querySelectorAll('input[name="choiceAnswer"]:checked')]
       .map((item) => item.value)
       .join(",");
   }
   return $("practiceAnswer").value.trim();
-}
-
-function isChoiceType(type) {
-  return type === "single_choice" || type === "multiple_choice";
 }
 
 async function streamPracticeAnswer(answer) {
@@ -638,7 +295,7 @@ async function streamPracticeAnswer(answer) {
   const response = await fetch("/api/practice/answer/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question_id: practiceQuestion.id, answer }),
+    body: JSON.stringify({ question_id: state.practiceQuestion.id, answer }),
   });
   if (!response.ok || !response.body) {
     throw new Error(await response.text());
@@ -681,25 +338,22 @@ async function startInterview() {
   const payload = selectedInterviewConfig();
   if (!payload.category) payload.category = null;
   if (!payload.difficulty) payload.difficulty = null;
-  const result = await request("/api/interview/sessions", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-  interviewSessionId = result.session_id;
-  interviewFinished = false;
-  interviewLogs = [];
+  const result = await startInterviewSession(payload);
+  state.interviewSessionId = result.session_id;
+  state.interviewFinished = false;
+  state.interviewLogs = [];
   renderQuestion($("interviewQuestion"), result.current_question);
   $("interviewAnswer").value = "";
   updateAnswerMeta("interviewAnswer", "interviewAnswerMeta");
   $("interviewResult").classList.remove("empty");
   renderInterviewLogs();
   updateInterviewProgress(result.answered_count, result.total_questions);
-  updateInterviewConfigSummary();
+  updateInterviewConfigSummary(selectedInterviewConfig());
   setStatus("模拟面试已开始");
 }
 
 async function submitInterviewAnswer() {
-  if (!interviewSessionId || interviewFinished) {
+  if (!state.interviewSessionId || state.interviewFinished) {
     setStatus("请先开始一场新的面试");
     return;
   }
@@ -708,11 +362,8 @@ async function submitInterviewAnswer() {
     setStatus("请先输入回答");
     return;
   }
-  const result = await request(`/api/interview/sessions/${interviewSessionId}/answer`, {
-    method: "POST",
-    body: JSON.stringify({ answer }),
-  });
-  interviewLogs.push({
+  const result = await submitInterviewAnswerRequest(state.interviewSessionId, answer);
+  state.interviewLogs.push({
     index: result.answered_count,
     score: result.score,
     source: result.source,
@@ -729,10 +380,10 @@ async function submitInterviewAnswer() {
   updateAnswerMeta("interviewAnswer", "interviewAnswerMeta");
 
   if (result.is_finished) {
-    interviewFinished = true;
+    state.interviewFinished = true;
     $("interviewQuestion").textContent = "本轮面试已结束，可以查看右侧报告。";
     $("interviewQuestion").classList.add("empty");
-    const report = await request(`/api/interview/sessions/${interviewSessionId}/report`);
+    const report = await getInterviewReport(state.interviewSessionId);
     renderInterviewLogs(report);
     setStatus("模拟面试已完成");
     return;
@@ -742,6 +393,158 @@ async function submitInterviewAnswer() {
   setStatus("已进入下一题");
 }
 
+async function submitResumeAnalyze(event) {
+  event.preventDefault();
+  const file = $("resumeFile").files?.[0];
+  if (!file) {
+    setStatus("请先选择 PDF 或 DOCX 简历");
+    return;
+  }
+  if (!isResumeDocument(file.name)) {
+    setStatus("当前支持上传 PDF 或 DOCX 简历");
+    return;
+  }
+
+  renderResumePending("正在提取文字", "正在读取简历文档并抽取可分析文本。");
+  let progressTimer = null;
+  try {
+    const uploaded = await uploadResumeDocument(file);
+    const messages = [
+      `已提取 ${uploaded.extracted_chars} 个字符，正在用 Chroma 召回 Top 8 相似 JD。`,
+      "正在压缩候选岗位上下文，保留岗位要求、命中证据和能力缺口。",
+      "正在请求 LLM 结合简历和候选 JD 完成岗位画像，并选出最值得优先准备的 Top 3。",
+      "LLM 正在生成面试准备建议；如果响应超时，会自动回退到本地 mock 分析。",
+      "LLM 分析仍在进行中，请稍等，完成后会自动保存到历史结果。",
+    ];
+    let messageIndex = 0;
+    renderResumePending("文字提取完成，正在检索岗位知识库", messages[messageIndex]);
+    progressTimer = window.setInterval(() => {
+      messageIndex = Math.min(messageIndex + 1, messages.length - 1);
+      renderResumePending("正在生成岗位画像", messages[messageIndex]);
+    }, 4500);
+    const result = await analyzeUploadedResume(uploaded.resume_id);
+    window.clearInterval(progressTimer);
+    progressTimer = null;
+    renderResumeResult(result);
+    await refreshResumeHistory();
+    setStatus("简历分析完成");
+  } catch (error) {
+    if (progressTimer) window.clearInterval(progressTimer);
+    const message = parseError(error.message || String(error));
+    renderResumeError(message);
+    throw new Error(message);
+  }
+}
+
+function isResumeDocument(filename) {
+  const lower = filename.toLowerCase();
+  return lower.endsWith(".pdf") || lower.endsWith(".docx");
+}
+
+async function refreshResumeHistory() {
+  state.resumeHistory = await listResumeHistory();
+  renderResumeHistory(state.resumeHistory);
+}
+
+async function showResumeHistoryResult(resumeId) {
+  const result = await getResumeResult(resumeId);
+  renderResumeResult(result);
+  setStatus(`已加载简历 #${resumeId} 的历史分析`);
+}
+
+async function deleteResumeHistory(resumeId) {
+  const item = state.resumeHistory.find((historyItem) => historyItem.resume_id === resumeId);
+  const filename = item?.filename || `简历 #${resumeId}`;
+  const confirmed = window.confirm(`确认删除历史结果？\n${filename}\n\n删除后会同时移除这份简历文本和分析结果。`);
+  if (!confirmed) return;
+
+  await deleteResumeHistoryRequest(resumeId);
+  await refreshResumeHistory();
+  $("resumeResult").classList.add("empty");
+  $("resumeResult").textContent = "历史结果已删除。上传 PDF 或 DOCX 简历后，这里会分阶段显示文字提取进度、分析进度和最终建议。";
+  setStatus(`已删除历史结果：${filename}`);
+}
+
+async function refreshJobList() {
+  state.jobs = await listJobs({ q: state.jobSearchQuery });
+  renderJobList(state.jobs);
+}
+
+async function submitJobSearch(event) {
+  event.preventDefault();
+  state.jobSearchQuery = $("jobSearchInput").value.trim();
+  await refreshJobList();
+  setStatus(state.jobSearchQuery ? `已按关键词筛选岗位：${state.jobSearchQuery}` : "已显示全部岗位");
+}
+
+async function clearJobSearch() {
+  state.jobSearchQuery = "";
+  $("jobSearchInput").value = "";
+  await refreshJobList();
+  setStatus("已重置岗位搜索");
+}
+
+function timeoutAfter(ms, message) {
+  return new Promise((_, reject) => {
+    window.setTimeout(() => reject(new Error(message)), ms);
+  });
+}
+
+async function fetchJobVectorStatusDirect() {
+  const response = await fetch("/api/jobs/vector-index/status", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+async function refreshJobVectorStatus({ showPending = false } = {}) {
+  const target = $("jobVectorStatus");
+  if (!target) return;
+  if (showPending) renderJobVectorStatus(null, "正在读取索引状态...");
+
+  try {
+    state.jobVectorStatus = await Promise.race([
+      fetchJobVectorStatusDirect(),
+      timeoutAfter(5000, "索引状态读取超时，请稍后重试或点击重建索引"),
+    ]);
+    renderJobVectorStatus(state.jobVectorStatus);
+  } catch (error) {
+    target.textContent = `索引状态读取失败：${parseError(error.message || String(error))}`;
+  }
+}
+
+async function rebuildJobVector() {
+  if (!$("jobVectorStatus")) return;
+  renderJobVectorStatus(null, "正在重建岗位向量索引...");
+  state.jobVectorStatus = await rebuildJobVectorIndex();
+  renderJobVectorStatus(state.jobVectorStatus);
+  setStatus(`岗位索引已重建，覆盖 ${state.jobVectorStatus.job_count} 个岗位`);
+}
+
+async function submitJobCollect(event) {
+  event.preventDefault();
+  const file = $("jobJsonlFile").files?.[0];
+  if (!file) {
+    setStatus("请先选择岗位 JSONL 文件");
+    return;
+  }
+  if (!file.name.toLowerCase().endsWith(".jsonl")) {
+    setStatus("当前只支持导入 .jsonl 岗位数据文件");
+    return;
+  }
+
+  renderJobPending("正在读取 JSONL 文件并写入岗位知识库。");
+  const result = await importJobsJsonl(file);
+  renderJobCollectResult(result);
+  await refreshJobList();
+  await rebuildJobVector();
+  setStatus(`岗位导入完成，新增 ${result.created_count} 条，更新 ${result.updated_count} 条`);
+}
+
 function bindTabs() {
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -749,6 +552,9 @@ function bindTabs() {
       document.querySelectorAll(".view").forEach((item) => item.classList.remove("active"));
       tab.classList.add("active");
       $(`${tab.dataset.tab}View`).classList.add("active");
+      if (tab.dataset.tab === "jobs") {
+        refreshJobVectorStatus({ showPending: !state.jobVectorStatus });
+      }
     });
   });
 }
@@ -768,14 +574,30 @@ function bindActions() {
   );
   $("category").addEventListener("change", () => runAction(refreshQuestionCount, "正在刷新题库..."));
   $("difficulty").addEventListener("change", () => runAction(refreshQuestionCount, "正在刷新题库..."));
-  $("category").addEventListener("change", updateInterviewConfigSummary);
-  $("difficulty").addEventListener("change", updateInterviewConfigSummary);
-  $("interviewQuestionCount").addEventListener("change", updateInterviewConfigSummary);
+  $("category").addEventListener("change", () => updateInterviewConfigSummary(selectedInterviewConfig()));
+  $("difficulty").addEventListener("change", () => updateInterviewConfigSummary(selectedInterviewConfig()));
+  $("interviewQuestionCount").addEventListener("change", () => updateInterviewConfigSummary(selectedInterviewConfig()));
   $("practiceAnswer").addEventListener("input", () => updateAnswerMeta("practiceAnswer", "practiceAnswerMeta"));
   $("interviewAnswer").addEventListener("input", () => updateAnswerMeta("interviewAnswer", "interviewAnswerMeta"));
   $("category").addEventListener("change", syncCreateFormDefaults);
   $("difficulty").addEventListener("change", syncCreateFormDefaults);
   $("questionForm").addEventListener("submit", (event) => runAction(() => saveQuestion(event), "正在保存题目..."));
+  $("resumeForm").addEventListener("submit", (event) => runAction(() => submitResumeAnalyze(event), "正在分析简历..."));
+  $("jobCollectForm").addEventListener("submit", (event) => runAction(() => submitJobCollect(event), "正在导入岗位数据..."));
+  $("jobSearchForm").addEventListener("submit", (event) => runAction(() => submitJobSearch(event), "正在搜索岗位..."));
+  $("clearJobSearchBtn").addEventListener("click", () => runAction(clearJobSearch, "正在重置岗位搜索..."));
+  $("rebuildJobVectorBtn")?.addEventListener("click", () => runAction(rebuildJobVector, "正在重建岗位索引..."));
+  $("resumeHistory").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-resume-id]");
+    if (button) {
+      runAction(() => showResumeHistoryResult(Number(button.dataset.resumeId)), "正在加载历史分析...");
+      return;
+    }
+    const deleteButton = event.target.closest("[data-delete-resume-id]");
+    if (deleteButton) {
+      runAction(() => deleteResumeHistory(Number(deleteButton.dataset.deleteResumeId)), "正在删除历史结果...");
+    }
+  });
   $("newQuestionType").addEventListener("change", toggleQuestionTypeFields);
   $("cancelEditBtn").addEventListener("click", () => {
     resetQuestionForm();
@@ -787,12 +609,12 @@ function bindActions() {
     const deleteButton = event.target.closest("[data-delete-id]");
 
     if (practiceButton) {
-      const question = questionCache.find((item) => item.id === Number(practiceButton.dataset.practiceId));
+      const question = state.questionCache.find((item) => item.id === Number(practiceButton.dataset.practiceId));
       if (question) useQuestionForPractice(question);
       return;
     }
     if (editButton) {
-      const question = questionCache.find((item) => item.id === Number(editButton.dataset.editId));
+      const question = state.questionCache.find((item) => item.id === Number(editButton.dataset.editId));
       if (question) fillQuestionForm(question);
       return;
     }
@@ -802,16 +624,27 @@ function bindActions() {
   });
 }
 
-bindTabs();
-bindActions();
-syncCreateFormDefaults();
-updateFilterSummary();
-updatePracticeSummary();
-updateInterviewConfigSummary();
-updateAnswerMeta("practiceAnswer", "practiceAnswerMeta");
-updateAnswerMeta("interviewAnswer", "interviewAnswerMeta");
-toggleQuestionTypeFields();
-refreshConfigStatus().catch(() => {
-  $("scoringMode").textContent = "评分：状态未知";
-});
-runAction(seedQuestions, "正在初始化题库...");
+function boot() {
+  bindTabs();
+  bindActions();
+  syncCreateFormDefaults();
+  updateFilterSummary(selectedFilters());
+  updatePracticeSummary();
+  updateInterviewConfigSummary(selectedInterviewConfig());
+  updateAnswerMeta("practiceAnswer", "practiceAnswerMeta");
+  updateAnswerMeta("interviewAnswer", "interviewAnswerMeta");
+  toggleQuestionTypeFields();
+  refreshConfigStatus().catch(() => {
+    $("scoringMode").textContent = "评分：状态未知";
+  });
+  refreshResumeHistory().catch(() => {
+    $("resumeHistory").textContent = "历史记录加载失败。";
+  });
+  refreshJobList().catch(() => {
+    $("jobList").textContent = "岗位数据加载失败。";
+  });
+  window.setTimeout(() => refreshJobVectorStatus({ showPending: true }), 0);
+  runAction(seedQuestions, "正在初始化题库...");
+}
+
+boot();

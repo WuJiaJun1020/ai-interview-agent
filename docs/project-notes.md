@@ -2,6 +2,8 @@
 
 这份文档合并原来的任务目标、开发进度、发布检查清单和项目展示材料，减少后续维护时多处同步的成本。`AGENTS.md` 仍然独立保存给 Codex 读取的项目上下文。
 
+当前对话归档交接摘要见 `docs/handoff.md`。新对话建议先读 `AGENTS.md`，再读 `docs/handoff.md`，最后按需查阅本文档。
+
 ## 当前目标
 
 持续开发 AI Interview Agent MVP，优先完成一个可演示、可测试、可迭代的 AI 面试练习系统。
@@ -26,6 +28,9 @@
 - 练习答案 SSE 流式评分进度。
 - 模拟面试会话、逐题答题和最终报告。
 - mock 评分和 OpenAI 兼容 LLM 评分模式。
+- PDF/DOCX 简历上传分析，生成岗位推荐、技能画像、薄弱项和练习建议。
+- 岗位知识库 JSONL 导入，保存公司、岗位、能力要求、技能和来源 URL。
+- 本地岗位向量索引，简历分析优先检索真实 JD 进行客制化岗位推荐。
 - 阿里云百炼千问 `qwen3.7-plus` 兼容配置。
 - LLM 失败自动回退 mock。
 - 前端顶部状态、题库列表、练习区和模拟面试区。
@@ -55,6 +60,22 @@
 - 已支持 DashScope/OpenAI 兼容配置，不暴露真实 API Key。
 - 已完成前端单页应用，支持题库管理、练习和模拟面试。
 - 已完成前后端目录拆分：后端在 `backend/`，前端静态文件在 `frontend/`。
+- 已合并本地 SQLite 数据库到 `backend/dev.db`，根目录不再保留活动 `dev.db`。
+- 已完成第一轮前端模块拆分：`app.js` 作为入口，API 请求、状态、渲染和工具函数拆成独立 ES Modules。
+- 已新增 PDF/DOCX 简历分析 MVP，支持上传文件、提取文本、分段展示进度、入库并输出岗位画像。
+- 简历分析历史结果可复看，无需重复上传同一份简历。
+- 已新增岗位知识库 MVP，支持上传已采集好的 JSONL 岗位数据，并按内容哈希去重。
+- 自动公开网页采集效果不稳定，已改为使用外部采集脚本结果导入。
+- 已接入 Chroma 本地持久化岗位向量库，支持重建/查看索引状态；旧本地哈希索引保留为兜底。
+- 简历分析已接入岗位知识库推荐：先用 Chroma 召回 Top 8 真实 JD，再压缩候选岗位上下文，LLM 模式下在同一次简历分析调用中结合简历输出 Top 3；知识库不足或 LLM 不可用时回退规则排序/自由推荐。
+- LLM 精排结果会保存并展示精排排名、匹配等级、推荐理由、能力缺口和简历优化建议。
+- 已修复简历分析前端请求超时导致的 `signal is aborted without reason`：分析请求允许更长等待，失败时结果区展示错误卡片，不再停留在 pending 状态。
+- 已为 OpenAI/DashScope 兼容 LLM 调用增加 `LLM_TIMEOUT_SECONDS`，默认 120 秒，超时后按现有逻辑回退 mock。
+- 简历分析历史结果支持删除，会同时移除该简历文本和关联分析结果；LLM 分析等待阶段会轮播展示岗位检索、证据整理和 LLM 生成等过程提示。
+- 已增强岗位推荐解释：匹配岗位会展示命中信号、JD 证据片段、推荐理由和能力缺口。
+- 已清理岗位推荐中已不再展示的 `practice_plan` 字段，岗位推荐现在聚焦推荐理由、能力缺口、命中信号和 JD 证据片段。
+- 岗位知识库页面已支持关键词搜索，可按公司、岗位、技能、城市、岗位描述和岗位要求筛选。
+- 当前 RAG 岗位检索优先使用 Chroma，内置哈希 embedding，后续可升级为真实 embedding API。
 - 已添加后端冒烟测试：`backend/tests/test_smoke.py`。
 - 已维护 `README.md` 和 `AGENTS.md`。
 
@@ -78,7 +99,11 @@ ai-interview-agent/
   frontend/
     index.html
     app.js
+    api.js
+    render.js
+    state.js
     styles.css
+    utils.js
   docs/
     project-notes.md
   .env.example
@@ -91,7 +116,7 @@ ai-interview-agent/
 当前前端仍由 FastAPI 托管：
 
 - 页面入口：`http://127.0.0.1:8000/`
-- 静态资源：`/static/app.js`、`/static/styles.css`
+- 静态资源：`/static/...`
 - API 文档：`http://127.0.0.1:8000/docs`
 
 ## 下一步计划
@@ -111,11 +136,14 @@ ai-interview-agent/
    - 根据得分、分类、难度和评分点覆盖情况提示用户继续练什么。
    - LLM 模式下继续优化提示词，让输出更稳定。
 4. 前端代码结构整理：
-   - 将 `frontend/app.js` 逐步拆成 API 请求、状态管理、渲染组件和工具函数等模块。
+   - 已完成第一轮 ES Module 拆分。
+   - 后续继续按题库管理、练习流、模拟面试流拆分业务逻辑。
    - 暂时不引入构建工具，除非静态页面继续膨胀到难以维护。
 5. 中长期计划：
+   - 增加 txt/md 素材上传，支持 LLM 生成和优化简历。
+   - 继续优化岗位知识库推荐质量，将当前内置哈希 embedding 升级为 DashScope/OpenAI embedding API。
    - 验证千问 3.7 Plus 真实评分质量。
-   - 添加 RAG 和向量库 Chroma。
+   - 完善 Chroma/RAG 工作流，增加更细粒度的 chunk 策略和检索评估。
    - 添加 LangGraph 面试工作流。
    - 完善展示材料和发布检查。
    - MVP 稳定后打标签 `v0.1.0`。
@@ -137,10 +165,23 @@ node --check frontend\app.js
 当前已验证结果：
 
 ```text
-conda run -n ai-interview-agent python -m pytest backend/tests -> 4 passed
+python -m pytest backend/tests --basetemp .pytest_tmp -> 6 passed
+python -m pytest backend/tests --basetemp .pytest_tmp_resume_fix2 -> 6 passed
+python -m pytest backend/tests --basetemp .pytest_tmp_resume_delete -> 6 passed
+python -m pytest backend/tests --basetemp .pytest_tmp_chroma_final -> 6 passed
+python -m pytest backend/tests --basetemp .pytest_tmp_rerank -> 7 passed
+python -m pytest backend/tests --basetemp .pytest_tmp_single_llm -> 7 passed
+python -m pytest backend/tests --basetemp .pytest_tmp_cleanup -> 7 passed
+Chroma 岗位索引重建验证 -> 180 个岗位 / 540 个片段，backend=chroma，collection=job_posts
 node --check frontend\app.js -> passed
+node --check frontend\api.js -> passed
+node --check frontend\render.js -> passed
+node --check frontend\state.js -> passed
+node --check frontend\utils.js -> passed
 GET /                  -> 200
 GET /static/app.js     -> 200
+GET /static/api.js     -> 200
+GET /static/render.js  -> 200
 GET /static/styles.css -> 200
 ```
 
@@ -154,12 +195,22 @@ GET /static/styles.css -> 200
 - 新增、编辑、删除题目后，题库列表能同步变化。
 - 模拟面试能按设置题数完成，并显示最终报告。
 - 页面顶部能显示评分模式和 LLM 配置状态，但不暴露 API Key。
+- “简历分析”Tab 可以上传 PDF/DOCX，并展示提取进度、分析进度、推荐岗位、技能画像、风险点和练习建议。
+- “简历分析”Tab 会展示基于岗位知识库的匹配岗位、匹配原因、能力缺口和准备重点。
+- “简历分析”Tab 在 LLM 模式下会展示岗位 Top 3 精排判断、推荐理由、风险点和简历优化建议。
+- “简历分析”Tab 会展示岗位推荐的命中信号、JD 证据片段、推荐理由和能力缺口。
+- “岗位知识库”Tab 可以上传 JSONL 文件导入 JD、重建岗位索引，并展示岗位数据。
+- “岗位知识库”Tab 可以按关键词搜索公司、岗位、技能和 JD 文本。
 
 ## 提交前检查
 
 - 后端自动化测试通过。
-- `node --check frontend\app.js` 通过。
+- 前端各 JS 模块 `node --check` 通过。
 - 前端核心流程可以手动跑通。
+- 简历 PDF/DOCX 上传分析流程可以跑通，历史结果可以复看。
+- 简历分析失败或超时时，右侧结果区需要展示明确失败原因，不应一直显示“正在生成岗位画像”。
+- 岗位 JSONL 导入流程可以跑通，不在应用内采集登录态或个人信息。
+- 岗位索引重建和简历知识库推荐流程可以跑通。
 - `http://127.0.0.1:8000/docs` 可以打开。
 - `.env` 没有被 Git 跟踪。
 - 真实 API Key 没有写入代码、README 或文档。
