@@ -22,6 +22,10 @@ export function queryString(filters) {
 export function parseError(message) {
   if (message.includes("No question found")) return "没有找到符合条件的题目，请先初始化题库或调整筛选条件";
   if (message.includes("Interview session is finished")) return "本轮面试已结束，请开始新的面试";
+  if (message.includes("Not Found")) return "当前后端还没有加载岗位 HR 面试接口，请重启后端后再试";
+  if (message.includes("HR interview session")) return "岗位 HR 面试会话不可用，请重新开始一轮面试";
+  if (message.includes("Resume not found")) return "没有找到这份简历，请重新选择已分析的简历";
+  if (message.includes("Job post not found")) return "没有找到这个岗位，请重新选择岗位库中的目标岗位";
   if (message.includes("Failed to fetch")) return "无法连接后端，请确认服务已启动";
   return message;
 }

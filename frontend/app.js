@@ -3,7 +3,7 @@ import {
   deleteQuestionRequest,
   deleteResumeHistoryRequest,
   getConfigStatus,
-  getInterviewReport,
+  getHrInterviewReport,
   getPracticeQuestion,
   getResumeResult,
   importJobsJsonl,
@@ -13,10 +13,10 @@ import {
   rebuildJobVectorIndex,
   saveQuestionRequest,
   seedQuestionBank,
-  startInterviewSession,
-  submitInterviewAnswerRequest,
+  startHrInterviewStream,
+  submitHrInterviewAnswerStream,
   uploadResumeDocument,
-} from "./api.js?v=20260609-rag-7";
+} from "./api.js?v=20260609-chat-1";
 import {
   renderFilterOptions,
   renderInterviewLogs,
@@ -26,6 +26,10 @@ import {
   renderJobVectorStatus,
   renderPracticePending,
   renderPracticeResult,
+  renderHrQuestion,
+  renderHrStreamText,
+  renderHrTurnStream,
+  renderHrTurnSummary,
   renderQuestion,
   renderQuestionCount,
   renderQuestionList,
@@ -38,9 +42,9 @@ import {
   updateInterviewConfigSummary,
   updateInterviewProgress,
   updatePracticeSummary,
-} from "./render.js?v=20260609-rag-7";
-import { state } from "./state.js?v=20260609-rag-7";
-import { $, escapeHtml, isChoiceType, parseError } from "./utils.js?v=20260609-rag-7";
+} from "./render.js?v=20260609-chat-1";
+import { state } from "./state.js?v=20260609-chat-1";
+import { $, escapeHtml, isChoiceType, parseError } from "./utils.js?v=20260609-chat-1";
 
 function selectedFilters() {
   return {
@@ -50,8 +54,13 @@ function selectedFilters() {
 }
 
 function selectedInterviewConfig() {
+  const resumeOption = $("hrResumeSelect").selectedOptions[0];
+  const jobOption = $("hrJobSelect").selectedOptions[0];
   return {
-    ...selectedFilters(),
+    resume_id: Number($("hrResumeSelect").value) || null,
+    job_id: Number($("hrJobSelect").value) || null,
+    resumeLabel: resumeOption?.textContent || "",
+    jobLabel: jobOption?.textContent || "",
     total_questions: Number($("interviewQuestionCount").value),
   };
 }
@@ -61,6 +70,11 @@ function syncCreateFormDefaults() {
   if ($("difficulty").value && !$("newDifficulty").value) $("newDifficulty").value = $("difficulty").value;
 }
 
+function shortOptionLabel(...parts) {
+  const value = parts.filter(Boolean).join(" · ");
+  return value.length > 34 ? `${value.slice(0, 34)}...` : value;
+}
+
 function setStatus(text) {
   $("statusText").textContent = text;
 }
@@ -68,7 +82,7 @@ function setStatus(text) {
 function setBusy(isBusy) {
   state.busyCount += isBusy ? 1 : -1;
   state.busyCount = Math.max(state.busyCount, 0);
-  document.querySelectorAll("button").forEach((button) => {
+  document.querySelectorAll("button:not(.tab):not([data-static-disabled])").forEach((button) => {
     button.disabled = state.busyCount > 0;
   });
 }
@@ -116,6 +130,39 @@ async function refreshQuestionCount() {
   renderQuestionList(questions);
   renderFilterOptions(allQuestions);
   updateFilterSummary(selectedFilters());
+}
+
+function refreshHrInterviewOptions() {
+  const resumeSelect = $("hrResumeSelect");
+  const jobSelect = $("hrJobSelect");
+  if (!resumeSelect || !jobSelect) return;
+
+  const currentResume = resumeSelect.value;
+  const currentJob = jobSelect.value;
+  const analyzedResumes = state.resumeHistory.filter((item) => item.latest_analysis);
+
+  resumeSelect.innerHTML = [
+    '<option value="">选择一份已分析简历</option>',
+    ...analyzedResumes.map((item) => {
+      const role = item.latest_analysis?.target_roles?.[0] || "未识别岗位";
+      return `<option value="${item.resume_id}">${escapeHtml(item.filename)} · ${escapeHtml(role)}</option>`;
+    }),
+  ].join("");
+  resumeSelect.value = analyzedResumes.some((item) => String(item.resume_id) === currentResume)
+    ? currentResume
+    : String(analyzedResumes[0]?.resume_id || "");
+
+  jobSelect.innerHTML = [
+    '<option value="">选择一个目标岗位</option>',
+    ...state.jobs.map((job) => {
+      const label = shortOptionLabel(job.company, job.title);
+      return `<option value="${job.id}" title="${escapeHtml(job.company)} · ${escapeHtml(job.title)}">${escapeHtml(label)}</option>`;
+    }),
+  ].join("");
+  jobSelect.value = state.jobs.some((job) => String(job.id) === currentJob)
+    ? currentJob
+    : String(state.jobs[0]?.id || "");
+  updateInterviewConfigSummary(selectedInterviewConfig());
 }
 
 async function seedQuestions() {
@@ -301,6 +348,10 @@ async function streamPracticeAnswer(answer) {
     throw new Error(await response.text());
   }
 
+  await readSseResponse(response, handlePracticeSseEvent);
+}
+
+async function readSseResponse(response, onEvent) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -310,15 +361,31 @@ async function streamPracticeAnswer(answer) {
     buffer += decoder.decode(value, { stream: true });
     const parts = buffer.split("\n\n");
     buffer = parts.pop() || "";
-    parts.forEach(handleSseMessage);
+    for (const part of parts) {
+      await handleSseMessage(part, onEvent);
+    }
+  }
+  if (buffer.trim()) {
+    await handleSseMessage(buffer, onEvent);
   }
 }
 
-function handleSseMessage(raw) {
+async function handleSseMessage(raw, onEvent) {
   const event = raw.match(/^event: (.+)$/m)?.[1];
-  const dataText = raw.match(/^data: (.+)$/m)?.[1];
+  const dataText = raw
+    .split("\n")
+    .filter((line) => line.startsWith("data: "))
+    .map((line) => line.slice(6))
+    .join("\n");
   if (!event || !dataText) return;
   const payload = JSON.parse(dataText);
+  if (event === "error") {
+    throw new Error(payload.message || "流式响应失败，请稍后重试");
+  }
+  await onEvent(event, payload);
+}
+
+function handlePracticeSseEvent(event, payload) {
   if (event === "progress") {
     renderPracticePending(payload.message || "正在评分...");
     setStatus(payload.message || "正在评分...");
@@ -336,20 +403,58 @@ function toggleQuestionTypeFields() {
 
 async function startInterview() {
   const payload = selectedInterviewConfig();
-  if (!payload.category) payload.category = null;
-  if (!payload.difficulty) payload.difficulty = null;
-  const result = await startInterviewSession(payload);
-  state.interviewSessionId = result.session_id;
-  state.interviewFinished = false;
-  state.interviewLogs = [];
-  renderQuestion($("interviewQuestion"), result.current_question);
-  $("interviewAnswer").value = "";
-  updateAnswerMeta("interviewAnswer", "interviewAnswerMeta");
+  await startHrInterview(payload);
+}
+
+async function startHrInterview(payload) {
+  if (!payload.resume_id || !payload.job_id) {
+    setStatus("请先选择一份已分析简历和一个目标岗位");
+    return;
+  }
+  let questionText = "";
+  renderHrStreamText($("interviewQuestion"), "面试官正在生成第一题", "", {
+    company: payload.jobLabel || "目标岗位",
+    job_title: "岗位 HR 面试",
+    resume_filename: payload.resumeLabel || "已选择简历",
+  });
   $("interviewResult").classList.remove("empty");
-  renderInterviewLogs();
-  updateInterviewProgress(result.answered_count, result.total_questions);
-  updateInterviewConfigSummary(selectedInterviewConfig());
-  setStatus("模拟面试已开始");
+  $("interviewResult").textContent = "面试开始后，这里会显示每题反馈和最终报告。";
+  const response = await startHrInterviewStream({
+    resume_id: payload.resume_id,
+    job_id: payload.job_id,
+    total_questions: payload.total_questions,
+  });
+
+  await readSseResponse(response, (event, eventPayload) => {
+    if (event === "progress") {
+      setStatus(eventPayload.message || "正在生成岗位 HR 面试题...");
+      return;
+    }
+    if (event === "delta" && eventPayload.target === "question") {
+      questionText += eventPayload.text || "";
+      renderHrStreamText($("interviewQuestion"), "面试官正在生成第一题", questionText, {
+        company: payload.jobLabel || "目标岗位",
+        job_title: "岗位 HR 面试",
+        resume_filename: payload.resumeLabel || "已选择简历",
+      });
+      return;
+    }
+    if (event === "result") {
+      state.interviewSessionId = eventPayload.session_id;
+      state.hrInterviewContext = eventPayload.context;
+      state.hrCurrentQuestion = eventPayload.current_question;
+      state.interviewFinished = false;
+      state.interviewLogs = [];
+      renderHrQuestion($("interviewQuestion"), eventPayload.current_question, eventPayload.context);
+      $("interviewAnswer").value = "";
+      updateAnswerMeta("interviewAnswer", "interviewAnswerMeta");
+      $("interviewResult").classList.remove("empty");
+      renderInterviewLogs();
+      updateInterviewProgress(eventPayload.answered_count, eventPayload.total_questions);
+      updateInterviewConfigSummary(selectedInterviewConfig());
+      setStatus("岗位 HR 面试已开始");
+    }
+  });
 }
 
 async function submitInterviewAnswer() {
@@ -362,35 +467,81 @@ async function submitInterviewAnswer() {
     setStatus("请先输入回答");
     return;
   }
-  const result = await submitInterviewAnswerRequest(state.interviewSessionId, answer);
-  state.interviewLogs.push({
-    index: result.answered_count,
-    score: result.score,
-    source: result.source,
+  await submitHrInterviewAnswer(answer);
+}
+
+async function submitHrInterviewAnswer(answer) {
+  const currentQuestion = state.hrCurrentQuestion;
+  let feedbackText = "";
+  let nextQuestionText = "";
+  const liveTurn = {
+    context: state.hrInterviewContext,
+    question: currentQuestion?.question || "",
     answer,
-    feedback: result.feedback,
-    strengths: result.strengths,
-    weaknesses: result.weaknesses,
-    suggestions: result.suggestions,
-    standardAnswer: result.standard_answer,
-  });
-  renderInterviewLogs();
-  updateInterviewProgress(result.answered_count, result.total_questions);
+    feedbackText,
+    nextQuestionText,
+  };
+  renderHrTurnStream($("interviewQuestion"), liveTurn);
+  setStatus("面试官正在反馈...");
+  const response = await submitHrInterviewAnswerStream(state.interviewSessionId, answer);
   $("interviewAnswer").value = "";
   updateAnswerMeta("interviewAnswer", "interviewAnswerMeta");
 
-  if (result.is_finished) {
-    state.interviewFinished = true;
-    $("interviewQuestion").textContent = "本轮面试已结束，可以查看右侧报告。";
-    $("interviewQuestion").classList.add("empty");
-    const report = await getInterviewReport(state.interviewSessionId);
-    renderInterviewLogs(report);
-    setStatus("模拟面试已完成");
-    return;
-  }
+  await readSseResponse(response, async (event, eventPayload) => {
+    if (event === "progress") {
+      setStatus(eventPayload.message || "面试官正在反馈...");
+      return;
+    }
+    if (event === "delta" && eventPayload.target === "feedback") {
+      feedbackText += eventPayload.text || "";
+      renderHrTurnStream($("interviewQuestion"), {
+        ...liveTurn,
+        feedbackText,
+        nextQuestionText,
+      });
+      return;
+    }
+    if (event === "delta" && eventPayload.target === "next_question") {
+      nextQuestionText += eventPayload.text || "";
+      renderHrTurnStream($("interviewQuestion"), {
+        ...liveTurn,
+        feedbackText,
+        nextQuestionText,
+      });
+      return;
+    }
+    if (event === "result") {
+      const turn = {
+        index: eventPayload.answered_count,
+        score: eventPayload.score,
+        source: eventPayload.source,
+        question: currentQuestion?.question || "",
+        answer,
+        feedback: eventPayload.feedback,
+        strengths: eventPayload.strengths,
+        weaknesses: eventPayload.weaknesses,
+        suggestions: eventPayload.suggestions,
+        standardAnswer: "岗位 HR 面试没有固定参考答案，请优先参考反馈中的岗位匹配建议。",
+      };
+      state.interviewLogs.push(turn);
+      renderInterviewLogs();
+      updateInterviewProgress(eventPayload.answered_count, eventPayload.total_questions);
 
-  renderQuestion($("interviewQuestion"), result.next_question);
-  setStatus("已进入下一题");
+      if (eventPayload.is_finished) {
+        state.interviewFinished = true;
+        state.hrCurrentQuestion = null;
+        renderHrTurnSummary($("interviewQuestion"), turn);
+        const report = await getHrInterviewReport(state.interviewSessionId);
+        renderInterviewLogs(report);
+        setStatus("岗位 HR 面试已完成，左侧保留本轮反馈");
+        return;
+      }
+
+      state.hrCurrentQuestion = eventPayload.next_question;
+      renderHrQuestion($("interviewQuestion"), eventPayload.next_question, state.hrInterviewContext);
+      setStatus("岗位 HR 面试已进入下一题");
+    }
+  });
 }
 
 async function submitResumeAnalyze(event) {
@@ -444,6 +595,7 @@ function isResumeDocument(filename) {
 async function refreshResumeHistory() {
   state.resumeHistory = await listResumeHistory();
   renderResumeHistory(state.resumeHistory);
+  refreshHrInterviewOptions();
 }
 
 async function showResumeHistoryResult(resumeId) {
@@ -468,6 +620,7 @@ async function deleteResumeHistory(resumeId) {
 async function refreshJobList() {
   state.jobs = await listJobs({ q: state.jobSearchQuery });
   renderJobList(state.jobs);
+  refreshHrInterviewOptions();
 }
 
 async function submitJobSearch(event) {
@@ -574,8 +727,8 @@ function bindActions() {
   );
   $("category").addEventListener("change", () => runAction(refreshQuestionCount, "正在刷新题库..."));
   $("difficulty").addEventListener("change", () => runAction(refreshQuestionCount, "正在刷新题库..."));
-  $("category").addEventListener("change", () => updateInterviewConfigSummary(selectedInterviewConfig()));
-  $("difficulty").addEventListener("change", () => updateInterviewConfigSummary(selectedInterviewConfig()));
+  $("hrResumeSelect").addEventListener("change", () => updateInterviewConfigSummary(selectedInterviewConfig()));
+  $("hrJobSelect").addEventListener("change", () => updateInterviewConfigSummary(selectedInterviewConfig()));
   $("interviewQuestionCount").addEventListener("change", () => updateInterviewConfigSummary(selectedInterviewConfig()));
   $("practiceAnswer").addEventListener("input", () => updateAnswerMeta("practiceAnswer", "practiceAnswerMeta"));
   $("interviewAnswer").addEventListener("input", () => updateAnswerMeta("interviewAnswer", "interviewAnswerMeta"));

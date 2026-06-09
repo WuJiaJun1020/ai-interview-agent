@@ -210,52 +210,149 @@ def test_question_bank_crud_and_practice_flow(client: TestClient) -> None:
     assert deleted_get_response.status_code == 404
 
 
-def test_interview_flow(client: TestClient) -> None:
-    seed_response = client.post("/api/questions/seed")
-    assert seed_response.status_code == 200
+def test_hr_interview_flow_uses_resume_and_job_context(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    job_jsonl = (
+        '{"source":"test","company":"Context Corp","job_id":"hr-job-1","title":"Python Backend Intern",'
+        '"city":"Shenzhen","job_type":"internship","category":"backend",'
+        '"description":"Build FastAPI services and Redis cache for interview products.",'
+        '"requirements":["Python","FastAPI","Redis","MySQL"],'
+        '"raw_text":"Python FastAPI Redis MySQL backend internship",'
+        '"url":"https://example.com/jobs/hr-python","collected_at":"2026-06-09T12:00:00"}\n'
+    )
+    job_import_response = client.post(
+        "/api/jobs/import-jsonl",
+        files={"file": ("hr_jobs.jsonl", job_jsonl.encode("utf-8"), "text/plain")},
+    )
+    assert job_import_response.status_code == 200
+    job_id = job_import_response.json()["jobs"][0]["id"]
+
+    def fake_extract_resume_text(_, filename: str, __: str) -> str:
+        if not filename.lower().endswith((".pdf", ".docx")):
+            raise ValueError("Only PDF and DOCX resumes are supported")
+        return (
+            "Candidate used Python, FastAPI, Redis and MySQL in a backend project. "
+            "The project optimized API latency by 30% and supported Docker deployment."
+        )
+
+    monkeypatch.setattr(resumes_api, "extract_resume_text", fake_extract_resume_text)
+    upload_response = client.post(
+        "/api/resumes/upload",
+        files={"file": ("candidate.pdf", b"%PDF mock", "application/pdf")},
+    )
+    assert upload_response.status_code == 201
+    resume_id = upload_response.json()["resume_id"]
 
     start_response = client.post(
-        "/api/interview/sessions",
-        json={"category": "Python", "difficulty": "初级", "total_questions": 2},
+        "/api/interview/hr-sessions",
+        json={"resume_id": resume_id, "job_id": job_id, "total_questions": 2},
     )
     assert start_response.status_code == 201
     session = start_response.json()
-    assert session["session_id"] > 0
-    assert session["answered_count"] == 0
-    assert session["total_questions"] == 2
-    assert session["is_finished"] is False
+    assert session["context"]["resume_id"] == resume_id
+    assert session["context"]["job_id"] == job_id
+    assert session["context"]["job_title"] == "Python Backend Intern"
+    assert session["current_question"]["question"]
+    assert session["source"] == "mock"
 
     first_answer_response = client.post(
-        f"/api/interview/sessions/{session['session_id']}/answer",
-        json={"answer": "我会先说明核心概念，再结合项目例子回答。"},
+        f"/api/interview/hr-sessions/{session['session_id']}/answer",
+        json={"answer": "I used Python and FastAPI to build APIs, optimized Redis cache, and reduced latency by 30%."},
     )
     assert first_answer_response.status_code == 200
     first_answer = first_answer_response.json()
-    assert first_answer["answered_count"] == 1
-    assert first_answer["is_finished"] is False
-    assert first_answer["next_question"] is not None
+    assert 0 <= first_answer["score"] <= 100
     assert first_answer["source"] == "mock"
-    assert first_answer["strengths"]
-    assert first_answer["weaknesses"]
-    assert first_answer["suggestions"]
+    assert first_answer["next_question"] is not None
+    assert first_answer["answered_count"] == 1
 
     second_answer_response = client.post(
-        f"/api/interview/sessions/{session['session_id']}/answer",
-        json={"answer": "补充关键点、适用场景和常见问题。"},
+        f"/api/interview/hr-sessions/{session['session_id']}/answer",
+        json={"answer": "I would clarify requirements, ship a small API first, then improve monitoring and caching."},
     )
     assert second_answer_response.status_code == 200
     second_answer = second_answer_response.json()
-    assert second_answer["answered_count"] == 2
     assert second_answer["is_finished"] is True
     assert second_answer["next_question"] is None
 
-    report_response = client.get(f"/api/interview/sessions/{session['session_id']}/report")
+    report_response = client.get(f"/api/interview/hr-sessions/{session['session_id']}/report")
     assert report_response.status_code == 200
     report = report_response.json()
     assert report["answered_count"] == 2
     assert report["total_questions"] == 2
-    assert 0 <= report["average_score"] <= 100
+    assert report["answers"][0]["question"]
     assert report["recommendation"]
+
+
+def test_hr_interview_stream_flow(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    job_jsonl = (
+        '{"source":"test","company":"Stream Corp","job_id":"hr-stream-1","title":"FastAPI Backend Intern",'
+        '"city":"Guangzhou","job_type":"internship","category":"backend",'
+        '"description":"Build FastAPI services and Redis cache.",'
+        '"requirements":["Python","FastAPI","Redis"],'
+        '"raw_text":"Python FastAPI Redis backend internship",'
+        '"url":"https://example.com/jobs/hr-stream","collected_at":"2026-06-09T12:00:00"}\n'
+    )
+    job_import_response = client.post(
+        "/api/jobs/import-jsonl",
+        files={"file": ("hr_stream_jobs.jsonl", job_jsonl.encode("utf-8"), "text/plain")},
+    )
+    assert job_import_response.status_code == 200
+    job_id = job_import_response.json()["jobs"][0]["id"]
+
+    def fake_extract_resume_text(_, filename: str, __: str) -> str:
+        if not filename.lower().endswith((".pdf", ".docx")):
+            raise ValueError("Only PDF and DOCX resumes are supported")
+        return "Candidate built Python FastAPI services and optimized Redis cache latency."
+
+    monkeypatch.setattr(resumes_api, "extract_resume_text", fake_extract_resume_text)
+    upload_response = client.post(
+        "/api/resumes/upload",
+        files={"file": ("stream-candidate.pdf", b"%PDF mock", "application/pdf")},
+    )
+    assert upload_response.status_code == 201
+    resume_id = upload_response.json()["resume_id"]
+
+    with client.stream(
+        "POST",
+        "/api/interview/hr-sessions/stream",
+        json={"resume_id": resume_id, "job_id": job_id, "total_questions": 1},
+    ) as stream_response:
+        assert stream_response.status_code == 200
+        start_stream_text = "".join(stream_response.iter_text())
+
+    assert "event: progress" in start_stream_text
+    assert "event: delta" in start_stream_text
+    assert '"target": "question"' in start_stream_text
+    assert "event: result" in start_stream_text
+    start_result = _sse_result_payload(start_stream_text)
+    assert start_result["session_id"] > 0
+    assert start_result["current_question"]["question"]
+    assert start_result["source"] == "mock"
+
+    with client.stream(
+        "POST",
+        f"/api/interview/hr-sessions/{start_result['session_id']}/answer/stream",
+        json={"answer": "I used Python and FastAPI to build APIs, and improved Redis cache performance by 25%."},
+    ) as stream_response:
+        assert stream_response.status_code == 200
+        answer_stream_text = "".join(stream_response.iter_text())
+
+    assert "event: progress" in answer_stream_text
+    assert "event: delta" in answer_stream_text
+    assert '"target": "feedback"' in answer_stream_text
+    assert "event: result" in answer_stream_text
+    answer_result = _sse_result_payload(answer_stream_text)
+    assert 0 <= answer_result["score"] <= 100
+    assert answer_result["answered_count"] == 1
+    assert answer_result["total_questions"] == 1
+    assert answer_result["is_finished"] is True
+    assert answer_result["next_question"] is None
+
+    report_response = client.get(f"/api/interview/hr-sessions/{start_result['session_id']}/report")
+    assert report_response.status_code == 200
+    report = report_response.json()
+    assert report["answered_count"] == 1
+    assert report["answers"][0]["answer"].startswith("I used Python")
 
 
 def test_resume_pdf_analysis_flow(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -582,3 +679,11 @@ def test_resume_llm_analysis_uses_top_8_and_returns_top_3_jobs(monkeypatch: pyte
     assert [job["job_id"] for job in context["matched_jobs"]] == [3, 1, 2]
     assert context["matched_jobs"][0]["llm_match_level"] == "强匹配"
     assert context["matched_jobs"][0]["match_score"] == 92
+
+
+def _sse_result_payload(stream_text: str) -> dict[str, object]:
+    for part in stream_text.split("\n\n"):
+        if part.startswith("event: result"):
+            data_line = next(line for line in part.splitlines() if line.startswith("data: "))
+            return json.loads(data_line.removeprefix("data: "))
+    raise AssertionError("SSE result event not found")

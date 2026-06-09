@@ -4,96 +4,125 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Interview Agent</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260609-rag-7" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260609-chat-1" />
   </head>
   <body>
     <div class="app-shell">
-      <header class="topbar">
-        <div>
+      <aside class="sidebar" aria-label="主导航">
+        <div class="brand">
           <h1>AI Interview Agent</h1>
-          <p>题库练习和模拟面试</p>
+          <p>面试练习工作台</p>
         </div>
-        <div class="topbar-actions">
-          <span id="questionCount" class="summary-pill">题库：加载中</span>
+
+        <nav class="tabs" aria-label="功能切换">
+          <button class="tab active" data-tab="practice" type="button">
+            <span>题库练习</span>
+            <small>抽题 / 评分 / 管理</small>
+          </button>
+          <button class="tab" data-tab="interview" type="button">
+            <span>模拟面试</span>
+            <small>简历 + 岗位 HR</small>
+          </button>
+          <button class="tab" data-tab="resume" type="button">
+            <span>简历分析</span>
+            <small>解析 / 推荐 / 复看</small>
+          </button>
+          <button class="tab" data-tab="jobs" type="button">
+            <span>岗位知识库</span>
+            <small>导入 / 搜索 / 索引</small>
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
           <span id="scoringMode" class="summary-pill muted-pill">评分：加载中</span>
+          <p id="statusText" class="status-text">准备就绪</p>
           <a class="docs-link" href="/docs" target="_blank">API Docs</a>
         </div>
-      </header>
+      </aside>
 
       <main class="workspace">
-        <section class="panel controls-panel">
-          <div class="field">
-            <label for="category">分类</label>
-            <select id="category">
-              <option value="">全部</option>
-            </select>
+        <section id="practiceView" class="view active practice-view">
+          <div class="view-header">
+            <div>
+              <span class="eyebrow">Question Bank</span>
+              <h2>题库练习</h2>
+              <p>按分类和难度筛选题库，抽题作答，查看评分反馈，并维护题目内容。</p>
+            </div>
+            <div class="view-header-actions">
+              <button id="refreshBtn" class="secondary-btn" type="button">刷新题库</button>
+              <button id="seedBtn" type="button">初始化题库</button>
+            </div>
           </div>
-          <div class="field">
-            <label for="difficulty">难度</label>
-            <select id="difficulty">
-              <option value="">全部</option>
-              <option value="初级">初级</option>
-            </select>
-          </div>
-          <button id="refreshBtn" class="secondary-btn" type="button">刷新题库</button>
-          <button id="seedBtn" type="button">初始化题库</button>
-          <p id="statusText" class="status-text">准备就绪</p>
-        </section>
 
-        <section class="overview-grid" aria-label="当前状态">
-          <article class="overview-card">
-            <span class="overview-label">筛选范围</span>
-            <strong id="filterSummary">全部分类 · 全部难度</strong>
-            <p id="librarySummary">题库正在加载</p>
-          </article>
-          <article class="overview-card">
-            <span class="overview-label">当前练习</span>
-            <strong id="practiceSummary">未选择题目</strong>
-            <p id="practiceSummaryDetail">可以从题库列表选择，或随机抽题。</p>
-          </article>
-          <article class="overview-card">
-            <span class="overview-label">模拟面试</span>
-            <strong id="interviewSummary">未开始</strong>
-            <p id="interviewSummaryDetail">分类：全部 · 难度：全部 · 题数：3</p>
-          </article>
-        </section>
+          <section class="page-summary-grid" aria-label="题库练习状态">
+            <article class="overview-card">
+              <span class="overview-label">筛选范围</span>
+              <strong id="filterSummary">全部分类 · 全部难度</strong>
+              <p id="librarySummary">题库正在加载</p>
+            </article>
+            <article class="overview-card">
+              <span class="overview-label">当前练习</span>
+              <strong id="practiceSummary">未选择题目</strong>
+              <p id="practiceSummaryDetail">可以从题库列表选择，或随机抽题。</p>
+            </article>
+            <article class="overview-card">
+              <span class="overview-label">题库状态</span>
+              <strong id="questionCount">加载中</strong>
+              <p>题库练习页内独立展示题库统计和筛选状态。</p>
+            </article>
+          </section>
 
-        <section class="tabs" aria-label="功能切换">
-          <button class="tab active" data-tab="practice" type="button">题库练习</button>
-          <button class="tab" data-tab="interview" type="button">模拟面试</button>
-          <button class="tab" data-tab="resume" type="button">简历分析</button>
-          <button class="tab" data-tab="jobs" type="button">岗位知识库</button>
-        </section>
+          <section class="panel controls-panel practice-controls">
+            <div class="field">
+              <label for="category">分类</label>
+              <select id="category">
+                <option value="">全部</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="difficulty">难度</label>
+              <select id="difficulty">
+                <option value="">全部</option>
+                <option value="初级">初级</option>
+              </select>
+            </div>
+          </section>
 
-        <section id="practiceView" class="view active">
-          <div class="primary-column">
-            <div class="panel">
-              <div class="panel-header">
-                <h2>当前练习题</h2>
-                <div class="inline-actions">
-                  <span id="practiceMeta" class="meta">未开始</span>
-                  <button id="loadPracticeBtn" type="button">抽一道题</button>
+          <div class="practice-board">
+            <div class="practice-session-stack">
+              <section class="panel practice-session-panel">
+                <div class="panel-header">
+                  <h2>当前练习题</h2>
+                  <div class="inline-actions">
+                    <span id="practiceMeta" class="meta">未开始</span>
+                    <button id="loadPracticeBtn" type="button">抽一道题</button>
+                  </div>
                 </div>
-              </div>
-              <div id="practiceQuestion" class="question-box empty">点击“抽一道题”开始练习。</div>
-              <div id="choiceAnswerBox" class="choice-answer-box" hidden></div>
-              <textarea id="practiceAnswer" placeholder="在这里输入你的回答"></textarea>
-              <div class="answer-meta">
-                <span id="practiceAnswerMeta">0 字</span>
-                <span>建议先给结论，再补关键点和例子。</span>
-              </div>
-              <button id="submitPracticeBtn" type="button">提交练习答案</button>
+                <div id="practiceQuestion" class="question-box empty">点击“抽一道题”开始练习。</div>
+                <div id="choiceAnswerBox" class="choice-answer-box" hidden></div>
+                <textarea id="practiceAnswer" placeholder="在这里输入你的回答"></textarea>
+                <div class="answer-meta">
+                  <span id="practiceAnswerMeta">0 字</span>
+                  <span>建议先给结论，再补关键点和例子。</span>
+                </div>
+                <button id="submitPracticeBtn" type="button">提交练习答案</button>
+              </section>
+
+              <section class="panel result-panel practice-feedback-panel">
+                <h2>练习反馈</h2>
+                <div id="practiceResult" class="result-box empty">提交答案后显示评分、反馈和参考答案。</div>
+              </section>
             </div>
 
-            <div class="panel">
+            <section class="panel question-list-panel">
               <div class="panel-header">
                 <h2>题库列表</h2>
                 <span id="questionListMeta" class="meta">加载中</span>
               </div>
               <div id="questionList" class="question-list empty">正在加载题库...</div>
-            </div>
+            </section>
 
-            <div class="panel">
+            <section class="panel question-editor-panel">
               <div class="panel-header">
                 <h2 id="questionFormTitle">新增题目</h2>
                 <span id="questionFormMeta" class="meta">保存后可直接练习</span>
@@ -150,126 +179,202 @@
                   <button id="cancelEditBtn" class="ghost-btn" type="button" hidden>取消编辑</button>
                 </div>
               </form>
-            </div>
-          </div>
-
-          <div class="panel result-panel">
-            <h2>练习反馈</h2>
-            <div id="practiceResult" class="result-box empty">提交答案后显示评分、反馈和参考答案。</div>
+            </section>
           </div>
         </section>
 
-        <section id="interviewView" class="view">
-          <div class="panel">
-            <div class="panel-header">
-              <h2>模拟面试</h2>
-              <div class="inline-actions">
-                <span id="interviewProgress" class="meta">未开始</span>
-                <button id="startInterviewBtn" type="button">开始面试</button>
-              </div>
+        <section id="interviewView" class="view interview-view">
+          <header class="interview-topbar">
+            <div>
+              <h2>模拟面试 · 岗位 HR 面试</h2>
+              <p id="interviewConfigSummary">模式：岗位 HR 面试 · 简历：未选择 · 岗位：未选择 · 题数：3</p>
             </div>
-            <div class="interview-config">
-              <div class="field">
-                <label for="interviewQuestionCount">题数</label>
-                <select id="interviewQuestionCount">
-                  <option value="1">1 题</option>
-                  <option value="2">2 题</option>
-                  <option value="3" selected>3 题</option>
-                  <option value="5">5 题</option>
-                </select>
-              </div>
-              <div class="config-summary">
-                <strong>本轮配置</strong>
-                <p id="interviewConfigSummary">分类：全部 · 难度：全部 · 题数：3</p>
-              </div>
+            <div class="interview-topbar-actions">
+              <span id="interviewProgress" class="interview-time">未开始</span>
+              <button id="startInterviewBtn" type="button">新面试</button>
             </div>
-            <div class="progress-track" aria-label="面试进度">
-              <div id="interviewProgressBar" class="progress-bar"></div>
-            </div>
-            <div id="interviewQuestion" class="question-box empty">点击“开始面试”获取第一题。</div>
-            <textarea id="interviewAnswer" placeholder="回答当前面试题"></textarea>
-            <div class="answer-meta">
-              <span id="interviewAnswerMeta">0 字</span>
-              <span>本轮回答会计入右侧面试记录。</span>
-            </div>
-            <button id="submitInterviewBtn" type="button">提交当前回答</button>
-          </div>
+          </header>
 
-          <div class="panel result-panel">
-            <h2>面试记录</h2>
-            <div id="interviewResult" class="result-box empty">这里会显示每题反馈和最终报告。</div>
+          <div class="interview-chat-layout">
+            <section class="chat-stage" aria-label="模拟面试对话">
+              <div class="chat-config-strip">
+                <div class="field">
+                  <label for="interviewQuestionCount">题数</label>
+                  <select id="interviewQuestionCount">
+                    <option value="1">1 题</option>
+                    <option value="2">2 题</option>
+                    <option value="3" selected>3 题</option>
+                    <option value="5">5 题</option>
+                  </select>
+                </div>
+                <div id="hrInterviewFields" class="field-row">
+                  <div class="field">
+                    <label for="hrResumeSelect">简历</label>
+                    <select id="hrResumeSelect">
+                      <option value="">请先上传并分析简历</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="hrJobSelect">岗位</label>
+                    <select id="hrJobSelect">
+                      <option value="">请先导入岗位</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div id="interviewQuestion" class="chat-transcript empty">
+                <div class="chat-message ai-message">
+                  <div class="chat-avatar bot-avatar">AI</div>
+                  <div>
+                    <div class="chat-bubble">
+                      <p>你好，我是你的 AI 面试官。</p>
+                      <p>请选择简历、目标岗位和题数，然后点击“新面试”开始岗位 HR 面试。</p>
+                    </div>
+                    <span class="chat-time">准备就绪</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="chat-input-box">
+                <textarea id="interviewAnswer" placeholder="输入你的回答..."></textarea>
+                <div class="chat-input-footer">
+                  <div class="chat-helper-actions">
+                    <span id="interviewAnswerMeta">0 字</span>
+                    <button class="ghost-btn small-btn" type="button" data-static-disabled="true" disabled>结构化回答建议</button>
+                    <button class="ghost-btn small-btn" type="button" data-static-disabled="true" disabled>回顾上一题</button>
+                  </div>
+                  <button id="submitInterviewBtn" class="send-answer-btn" type="button" aria-label="发送回答">发送</button>
+                </div>
+              </div>
+              <p class="chat-disclaimer">内容由 AI 生成，仅供参考，请结合实际情况判断。</p>
+            </section>
+
+            <aside class="interview-side-panel" aria-label="面试侧栏">
+              <section class="side-card">
+                <h3>面试进度</h3>
+                <strong id="interviewSummary">未开始</strong>
+                <p id="interviewSummaryDetail">模式：岗位 HR 面试 · 简历：未选择 · 岗位：未选择 · 题数：3</p>
+                <div class="progress-track" aria-label="面试进度">
+                  <div id="interviewProgressBar" class="progress-bar"></div>
+                </div>
+              </section>
+
+              <section class="side-card">
+                <h3>面试信息</h3>
+                <dl class="interview-info-list">
+                  <div>
+                    <dt>面试岗位</dt>
+                    <dd id="interviewJobInfo">未选择</dd>
+                  </div>
+                  <div>
+                    <dt>候选简历</dt>
+                    <dd id="interviewResumeInfo">未选择</dd>
+                  </div>
+                  <div>
+                    <dt>题目总数</dt>
+                    <dd id="interviewQuestionTotalInfo">3 题</dd>
+                  </div>
+                </dl>
+              </section>
+
+              <section class="side-card interview-record-card">
+                <h3>面试记录</h3>
+                <div id="interviewResult" class="interview-record empty">暂无面试记录，面试过程中会自动保存。</div>
+              </section>
+            </aside>
           </div>
         </section>
 
-        <section id="resumeView" class="view single-view">
-          <div class="panel">
-            <div class="panel-header">
+        <section id="resumeView" class="view resume-view">
+          <div class="view-header">
+            <div>
+              <span class="eyebrow">Resume Analysis</span>
               <h2>简历分析</h2>
-              <span class="meta">支持 PDF / DOCX，结果会保存在历史记录中</span>
-            </div>
-            <form id="resumeForm" class="resume-form">
-              <div class="field">
-                <label for="resumeFile">简历文件</label>
-                <input id="resumeFile" name="resumeFile" type="file" accept="application/pdf,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required />
-              </div>
-              <button type="submit">分析简历</button>
-            </form>
-            <div class="resume-history-panel">
-              <div class="panel-header compact-header">
-                <h2>历史结果</h2>
-                <span class="meta">无需重复上传</span>
-              </div>
-              <div id="resumeHistory" class="resume-history empty">正在加载历史记录...</div>
+              <p>上传 PDF / DOCX，提取文本、生成岗位画像，并保存历史结果。</p>
             </div>
           </div>
 
-          <div class="panel result-panel">
-            <h2>分析结果</h2>
-            <div id="resumeResult" class="result-box empty">上传 PDF 或 DOCX 简历后，这里会分阶段显示文字提取进度、分析进度和最终建议。</div>
+          <div class="two-column-board">
+            <section class="panel resume-input-panel">
+              <div class="panel-header">
+                <h2>上传与历史</h2>
+                <span class="meta">支持 PDF / DOCX</span>
+              </div>
+              <form id="resumeForm" class="resume-form">
+                <div class="field">
+                  <label for="resumeFile">简历文件</label>
+                  <input id="resumeFile" name="resumeFile" type="file" accept="application/pdf,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required />
+                </div>
+                <button type="submit">分析简历</button>
+              </form>
+              <div class="resume-history-panel">
+                <div class="panel-header compact-header">
+                  <h2>历史结果</h2>
+                  <span class="meta">无需重复上传</span>
+                </div>
+                <div id="resumeHistory" class="resume-history empty">正在加载历史记录...</div>
+              </div>
+            </section>
+
+            <section class="panel result-panel resume-result-panel">
+              <h2>分析结果</h2>
+              <div id="resumeResult" class="result-box empty">上传 PDF 或 DOCX 简历后，这里会分阶段显示文字提取进度、分析进度和最终建议。</div>
+            </section>
           </div>
         </section>
 
-        <section id="jobsView" class="view single-view">
-          <div class="panel">
-            <div class="panel-header">
-              <h2>岗位 JSONL 导入</h2>
-              <span class="meta">上传你已采集好的 JSONL 文件，按内容哈希自动去重</span>
-            </div>
-            <form id="jobCollectForm" class="question-form">
-              <div class="field">
-                <label for="jobJsonlFile">岗位数据文件</label>
-                <input id="jobJsonlFile" name="jobJsonlFile" type="file" accept=".jsonl,application/jsonl,text/plain,application/x-ndjson" required />
-              </div>
-              <button type="submit">导入岗位数据</button>
-            </form>
-            <div id="jobCollectResult" class="result-box empty">导入完成后会显示解析条数、新增条数、跳过条数和错误信息。</div>
-            <div class="vector-index-box">
-              <div>
-                <strong>岗位向量索引</strong>
-                <p id="jobVectorStatus" class="meta">正在读取索引状态...</p>
-              </div>
-              <div class="inline-actions">
-                <button id="rebuildJobVectorBtn" class="secondary-btn" type="button">重建索引</button>
-              </div>
+        <section id="jobsView" class="view jobs-view">
+          <div class="view-header">
+            <div>
+              <span class="eyebrow">Job Knowledge Base</span>
+              <h2>岗位知识库</h2>
+              <p>导入已采集 JSONL 岗位数据，搜索岗位内容，并维护本地向量索引。</p>
             </div>
           </div>
 
-          <div class="panel result-panel">
-            <div class="panel-header">
-              <h2>岗位数据</h2>
-              <span id="jobListMeta" class="meta">加载中</span>
-            </div>
-            <form id="jobSearchForm" class="job-search-form">
-              <input id="jobSearchInput" name="jobSearchInput" placeholder="搜索岗位、公司、技能或 JD 关键词" />
-              <button class="secondary-btn" type="submit">搜索</button>
-              <button id="clearJobSearchBtn" class="ghost-btn" type="button">重置</button>
-            </form>
-            <div id="jobList" class="job-list empty">正在加载岗位数据...</div>
+          <div class="two-column-board jobs-board">
+            <section class="panel jobs-import-panel">
+              <div class="panel-header">
+                <h2>岗位 JSONL 导入</h2>
+                <span class="meta">按内容哈希自动去重</span>
+              </div>
+              <form id="jobCollectForm" class="question-form">
+                <div class="field">
+                  <label for="jobJsonlFile">岗位数据文件</label>
+                  <input id="jobJsonlFile" name="jobJsonlFile" type="file" accept=".jsonl,application/jsonl,text/plain,application/x-ndjson" required />
+                </div>
+                <button type="submit">导入岗位数据</button>
+              </form>
+              <div id="jobCollectResult" class="result-box empty">导入完成后会显示解析条数、新增条数、跳过条数和错误信息。</div>
+              <div class="vector-index-box">
+                <div>
+                  <strong>岗位向量索引</strong>
+                  <p id="jobVectorStatus" class="meta">正在读取索引状态...</p>
+                </div>
+                <div class="inline-actions">
+                  <button id="rebuildJobVectorBtn" class="secondary-btn" type="button">重建索引</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel result-panel jobs-list-panel">
+              <div class="panel-header">
+                <h2>岗位数据</h2>
+                <span id="jobListMeta" class="meta">加载中</span>
+              </div>
+              <form id="jobSearchForm" class="job-search-form">
+                <input id="jobSearchInput" name="jobSearchInput" placeholder="搜索岗位、公司、技能或 JD 关键词" />
+                <button class="secondary-btn" type="submit">搜索</button>
+                <button id="clearJobSearchBtn" class="ghost-btn" type="button">重置</button>
+              </form>
+              <div id="jobList" class="job-list empty">正在加载岗位数据...</div>
+            </section>
           </div>
         </section>
       </main>
     </div>
 
-    <script type="module" src="/static/app.js?v=20260609-rag-7"></script>
+    <script type="module" src="/static/app.js?v=20260609-chat-1"></script>
   </body>
 </html>

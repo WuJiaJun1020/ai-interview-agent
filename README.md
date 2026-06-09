@@ -1,19 +1,19 @@
 # AI Interview Agent
 
-AI Interview Agent 是一个 AI 模拟面试与题库练习 MVP。当前版本已经可以在本地完成题库管理、题库练习、模拟面试、mock 评分和 LLM 评分配置准备。
+AI Interview Agent 是一个 AI 模拟面试与题库练习 MVP。当前版本已经可以在本地完成题库管理、题库练习、岗位 HR 面试、简历分析、岗位知识库、mock 评分和 LLM 评分配置准备。
 
 ## 当前功能
 
 - 题库初始化：内置 Python、FastAPI、MySQL、Redis、HTTP、Git、Linux、Docker、算法、系统设计等 10 类题库，共 69 道，覆盖初级、中级、高级，并包含问答题、单选题和多选题。
 - 题库管理：在网页中新增、编辑、删除题目。
 - 题库练习：按分类、难度和题型练习题目，支持问答题、单选题和多选题；提交答案后会先显示评分进度，再展示评分来源、优点、问题、建议、参考答案和评分点覆盖情况。
-- 模拟面试：选择分类、难度和题数，逐题回答，最后查看每题评分来源、得分等级、平均分、复习建议和下一步行动。
+- 模拟面试：选择已分析简历、目标岗位和题数，让 AI/Mock 面试官根据“岗位 JD + 简历内容”逐题提问；界面采用对话式面试舱，支持流式问题、流式反馈和最终报告。
 - 简历分析：上传 PDF/DOCX 简历，系统分阶段提取文本、结合岗位知识库生成推荐岗位、技能画像、薄弱项和练习建议，并保存历史结果。
 - 岗位知识库：上传已采集好的 JSONL 岗位数据，保存岗位能力要求、技能和来源链接，并按内容哈希去重。
 - 岗位推荐索引：支持 Chroma 本地持久化岗位向量库，简历分析会先召回 Top 8 真实 JD、压缩候选上下文，再在同一次 LLM 分析里结合简历输出 Top 3；知识库不足、Chroma 不可用或 LLM 不可用时自动回退规则推荐/自由推荐。
-- 工作台状态：顶部展示筛选范围、当前练习题和模拟面试进度，题目以结构化卡片展示。
+- 工作台布局：左侧固定功能导航，产品名位于左上角；各模块只展示自身相关状态与信息，长列表和结果区使用模块内滚动。
 - 评分模式：默认使用 mock 规则评分；配置 API Key 后可以切换到 OpenAI 兼容 LLM 评分。
-- 状态展示：页面顶部显示题库数量和当前评分模式。
+- 状态展示：题库状态在“题库练习”页内展示，评分模式在左侧导航底部展示。
 
 ## 技术栈
 
@@ -79,9 +79,9 @@ uvicorn app.main:app --reload
 2. 点击“初始化题库”。
 3. 在“题库练习”中选择分类，点击“抽一道题”或在题库列表点“练这题”。
 4. 输入答案并提交，查看右侧评分反馈。
-5. 切到“模拟面试”，选择题数并开始面试。
-6. 切到“简历分析”，上传 PDF 或 DOCX 简历查看岗位和练习建议，之后可从历史结果直接复看。
-7. 切到“岗位知识库”，上传 JSONL 岗位数据文件导入岗位知识库。
+5. 切到“简历分析”，上传 PDF 或 DOCX 简历查看岗位和练习建议，之后可从历史结果直接复看。
+6. 切到“岗位知识库”，上传 JSONL 岗位数据文件导入岗位知识库。
+7. 切到“模拟面试”，选择已分析简历、目标岗位和题数后开始岗位 HR 面试。
 
 ## LLM 评分配置
 
@@ -111,7 +111,7 @@ LLM_ENABLE_THINKING=true
 LLM_TIMEOUT_SECONDS=120
 ```
 
-重启后端后，页面顶部评分状态会显示 LLM 配置情况。若 LLM 调用失败或超过 `LLM_TIMEOUT_SECONDS`，系统会自动回退 mock，避免影响本地演示。
+重启后端后，左侧导航底部的评分状态会显示 LLM 配置情况。若 LLM 调用失败或超过 `LLM_TIMEOUT_SECONDS`，系统会自动回退 mock，避免影响本地演示。
 
 ## 后端自测
 
@@ -134,9 +134,9 @@ http://127.0.0.1:8000/docs
 - `POST /api/questions/seed`
 - `GET /api/questions`
 - `POST /api/practice/answer`
-- `POST /api/interview/sessions`
-- `POST /api/interview/sessions/{session_id}/answer`
-- `GET /api/interview/sessions/{session_id}/report`
+- `POST /api/interview/hr-sessions/stream`
+- `POST /api/interview/hr-sessions/{session_id}/answer/stream`
+- `GET /api/interview/hr-sessions/{session_id}/report`
 - `POST /api/resumes/analyze`
 - `POST /api/jobs/import-jsonl`
 - `GET /api/jobs`
@@ -162,7 +162,7 @@ http://127.0.0.1:8000/docs
 - 继续优化岗位知识库推荐质量，后续可将当前哈希 embedding 升级为 DashScope/OpenAI embedding API。
 - 高质量扩充题库，补充更真实的工程题、排错题、设计题、单选题和多选题。
 - 增强练习反馈，增加下一步练习建议。
-- 继续按题库管理、练习流、模拟面试流拆分前端业务逻辑。
+- 继续按题库管理、练习流、岗位 HR 面试流拆分前端业务逻辑。
 - 完善 Chroma/RAG 工作流，增加更细粒度的 chunk 策略和检索评估。
 - 引入 LangGraph 管理更完整的多轮面试流程。
 - MVP 稳定后打标签 `v0.1.0`。

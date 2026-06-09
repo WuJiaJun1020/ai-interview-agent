@@ -107,22 +107,29 @@ uvicorn app.main:app --reload
 - 已添加 `POST /api/questions/seed` 初始化题库接口，重复调用不会重复插入。
 - 已添加练习接口：`GET /api/practice/question` 和 `POST /api/practice/answer`。
 - 练习答案评分目前是 mock 规则评分，不调用真实 LLM。
-- 已添加模拟面试 mock 接口：创建会话、提交答案、查看报告。
-- 模拟面试数据已落 SQLite 表：`interview_sessions` 和 `interview_answers`。
+- 已移除重复的题库模拟面试功能，题库相关练习统一保留在“题库练习”页面。
+- 已新增岗位 HR 面试 MVP：可选择已分析简历和岗位知识库中的目标岗位，让 AI/Mock 面试官根据“岗位 JD + 简历内容”生成面试问题。
+- 岗位 HR 面试数据已落 SQLite 表：`hr_interview_sessions` 和 `hr_interview_answers`。
+- 已新增岗位 HR 面试接口：`POST /api/interview/hr-sessions`、`POST /api/interview/hr-sessions/{session_id}/answer`、`GET /api/interview/hr-sessions/{session_id}/report`。
+- 已新增岗位 HR 面试 SSE 流式接口：`POST /api/interview/hr-sessions/stream` 和 `POST /api/interview/hr-sessions/{session_id}/answer/stream`。
+- 岗位 HR 面试在 `SCORING_MODE=llm` 且配置 Key 后会尝试真实 LLM 生成问题和反馈；失败或 mock 模式下会自动回退本地规则。
 - 已添加 FastAPI 托管的前端单页界面：`GET /`。
-- 前端支持题库初始化、题库练习、模拟面试和报告展示。
+- 前端支持题库初始化、题库练习、岗位 HR 面试和报告展示。
 - 前端已添加题库列表视图，可按筛选条件查看题目并点击“练这题”。
 - 前端已添加新增题目表单，保存后会刷新列表并选中新题练习。
 - 前端已添加题目编辑和删除入口。
 - 前端题库列表已有当前练习题和编辑题目的高亮状态。
 - 练习评分结果已改为结构化展示。
 - 模拟面试页面已有进度条、逐题记录卡片和最终报告卡片。
-- 模拟面试报告已增强：当前平均分、阶段判断、每题分数等级、用户回答、折叠参考答案、最终报告指标和下一步行动。
-- 前端已新增顶部状态概览：筛选范围、当前练习和模拟面试状态。
+- 岗位 HR 面试报告已增强：当前平均分、阶段判断、每题分数等级、用户回答、岗位匹配反馈、最终报告指标和下一步行动。
+- 前端已改为左侧固定导航布局，产品名位于界面左上角；各模块状态收回对应页面内展示，不再跨页面固定显示题库练习信息。
 - 练习题和面试题已改为结构化题目卡片，展示编号、分类、难度和评分点。
 - 练习和面试答题框已添加字数提示。
 - 题库空状态已改为可读提示。
-- 模拟面试支持选择题数，并展示本轮分类、难度、题数配置。
+- 岗位 HR 面试支持选择题数，并展示本轮简历、岗位和题数配置。
+- 模拟面试页已移除重复的题库模拟功能，仅保留岗位 HR 面试；岗位 HR 面试模式支持选择历史简历和目标岗位后开始面试。
+- 岗位 HR 面试前端已支持问题生成、回答反馈和下一题生成的流式展示；最后一题提交后左侧会保留本轮问题、用户回答和面试官反馈，不再直接替换成结束提示。
+- 模拟面试页已改为对话式面试舱：中间为 AI/用户聊天气泡和底部输入框，右侧为面试进度、面试信息和紧凑面试记录。
 - 前端分类下拉和新增题目的分类候选项会根据题库自动生成。
 - 前端难度下拉和新增题目的难度候选项会根据题库自动生成。
 - 前端题库状态会显示全库题量、分类数和难度数。
@@ -132,7 +139,7 @@ uvicorn app.main:app --reload
 - 前端练习反馈和模拟面试记录会展示评分来源、优点、问题和建议。
 - 前端在作答区域展示选择题选项：单选题用单选按钮，多选题用复选框。
 - LLM 评分失败会自动回退 mock，避免影响本地演示。
-- 已添加 `GET /api/config/status`，前端顶部会显示当前评分模式和 LLM 配置状态，不暴露 API Key。
+- 已添加 `GET /api/config/status`，前端左侧导航底部会显示当前评分模式和 LLM 配置状态，不暴露 API Key。
 - 已添加 `.env.example`。
 - 已更新 `.gitignore`，忽略本地数据库文件，例如 `dev.db`。
 - 已完善 `README.md`，包含功能、启动、LLM 配置、安全注意事项和后续计划。
@@ -175,12 +182,27 @@ node --check frontend\api.js -> passed
 node --check frontend\render.js -> passed
 node --check frontend\state.js -> passed
 node --check frontend\utils.js -> passed
+node --check frontend\app.js -> passed (20260609-layout-1)
+node --check frontend\api.js -> passed (20260609-layout-1)
+node --check frontend\render.js -> passed (20260609-layout-1)
+node --check frontend\state.js -> passed (20260609-layout-1)
+node --check frontend\utils.js -> passed (20260609-layout-1)
+Browser 验证新版工作台布局 -> 左侧导航固定；题库/面试/简历/岗位页只展示自身内容；桌面视口无整页滚动，长内容在模块内滚动
+node --check frontend\app.js -> passed (20260609-chat-1)
+node --check frontend\api.js -> passed (20260609-chat-1)
+node --check frontend\render.js -> passed (20260609-chat-1)
+node --check frontend\state.js -> passed (20260609-chat-1)
+node --check frontend\utils.js -> passed (20260609-chat-1)
+Browser 验证模拟面试对话式界面 -> 中间聊天流、底部输入框、右侧进度/信息/记录正常；旧问题卡片样式已从面试主区移除
 python -m pytest backend/tests --basetemp .pytest_tmp_resume_fix2 -> 6 passed
 python -m pytest backend/tests --basetemp .pytest_tmp_resume_delete -> 6 passed
 python -m pytest backend/tests --basetemp .pytest_tmp_chroma_final -> 6 passed
 python -m pytest backend/tests --basetemp .pytest_tmp_rerank -> 7 passed
 python -m pytest backend/tests --basetemp .pytest_tmp_single_llm -> 7 passed
 python -m pytest backend/tests --basetemp .pytest_tmp_cleanup -> 7 passed
+conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_hr_interview -> 8 passed
+conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_hr_stream -> 9 passed
+Browser 验证岗位 HR 面试 1 题流程 -> 问题生成可显示，提交后左侧保留最终反馈，右侧报告可查看
 Chroma 岗位索引重建验证 -> 180 个岗位 / 540 个片段，backend=chroma，collection=job_posts
 DOCX 简历上传接口验证 -> upload 201，analyze 201，匹配 6 个岗位
 GET /                  -> 200
@@ -227,6 +249,7 @@ ai-interview-agent/
         resume.py
       services/
         llm_scoring.py
+        hr_interview.py
         job_importer.py
         resume_analysis.py
         resume_text.py
@@ -271,7 +294,8 @@ ai-interview-agent/
    - LLM 模式下优化提示词，让输出更稳定、更像面试官反馈。
 4. 前端代码结构继续整理：
    - 已完成第一轮拆分：API 请求、状态管理、渲染组件和工具函数已拆成独立 ES Modules。
-   - 后续继续按功能边界拆分练习流、模拟面试流和题库管理逻辑。
+   - 后续继续按功能边界拆分练习流、岗位 HR 面试流和题库管理逻辑。
+   - 当前 UI 已从顶部 tab 堆叠布局改为左侧导航 + 右侧工作区，后续新增页面应沿用“页面内状态、模块内滚动”的布局约定。
 5. 后续中长期计划：
    - 为简历制作/优化增加 txt/md 素材上传和 LLM 生成简历功能。
    - 继续优化岗位知识库推荐质量，后续可将当前哈希 embedding 升级为 DashScope/OpenAI embedding API。

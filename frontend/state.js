@@ -1,6 +1,8 @@
 export const state = {
   practiceQuestion: null,
   interviewSessionId: null,
+  hrInterviewContext: null,
+  hrCurrentQuestion: null,
   interviewFinished: false,
   busyCount: 0,
   questionCache: [],

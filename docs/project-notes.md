@@ -11,7 +11,7 @@
 当前阶段重点：
 
 - 保持后端接口稳定可用。
-- 继续打磨前端练习和模拟面试体验。
+- 继续打磨前端练习和岗位 HR 面试体验。
 - 提升题库质量，而不是单纯堆题量。
 - 每次开发后同步更新 `AGENTS.md` 和本文档。
 - 不提交 `.env`、真实 API Key、本地数据库和缓存文件。
@@ -26,14 +26,15 @@
 - 题目新增、编辑、删除。
 - 题库练习与结构化评分反馈。
 - 练习答案 SSE 流式评分进度。
-- 模拟面试会话、逐题答题和最终报告。
+- 岗位 HR 面试会话、逐题答题和最终报告。
+- 岗位 HR 面试：选择已分析简历和岗位知识库岗位后，AI/Mock 面试官根据“岗位 JD + 简历内容”逐题提问、评分和反馈。
 - mock 评分和 OpenAI 兼容 LLM 评分模式。
 - PDF/DOCX 简历上传分析，生成岗位推荐、技能画像、薄弱项和练习建议。
 - 岗位知识库 JSONL 导入，保存公司、岗位、能力要求、技能和来源 URL。
 - 本地岗位向量索引，简历分析优先检索真实 JD 进行客制化岗位推荐。
 - 阿里云百炼千问 `qwen3.7-plus` 兼容配置。
 - LLM 失败自动回退 mock。
-- 前端顶部状态、题库列表、练习区和模拟面试区。
+- 前端左侧导航、页面内状态概览、题库列表、练习区和岗位 HR 面试区。
 
 暂不优先做：
 
@@ -50,15 +51,22 @@
 - 已创建一键启动脚本：`start-backend.bat`。
 - 已完成 FastAPI 后端基础骨架。
 - 已完成 SQLite + SQLAlchemy 数据库连接。
-- 已完成题库表、模拟面试会话表和答题记录表。
+- 已完成题库表、岗位 HR 面试会话表和答题记录表。
 - 已完成题库 CRUD 和种子题库初始化接口。
 - 当前种子题库共 69 道，覆盖 Python、FastAPI、MySQL、Redis、HTTP、Git、Linux、Docker、算法、系统设计 10 个分类。
 - 已支持问答题 `short_answer`、单选题 `single_choice`、多选题 `multiple_choice`。
 - 已完成练习抽题、提交答案和流式评分接口。
-- 已完成模拟面试创建会话、提交答案和查看报告接口。
+- 已移除重复的题库模拟面试功能，题库相关练习统一保留在“题库练习”页面。
+- 已新增岗位 HR 面试 MVP：后端接口支持创建岗位面试会话、提交回答、查看报告；前端模拟面试页仅保留岗位 HR 面试。
+- 岗位 HR 面试会根据简历正文、目标岗位 JD、岗位技能和历史回答生成下一题；`SCORING_MODE=llm` 且配置 Key 后使用真实 LLM，失败时回退 mock。
+- 岗位 HR 面试已增加 SSE 流式体验：开始面试时流式展示提问，提交回答时流式展示面试官反馈和下一题；本轮最后一题结束后左侧保留问题、回答和反馈。
+- 模拟面试页已改为对话式面试舱：中间为 AI/用户聊天气泡和底部输入框，右侧为面试进度、面试信息和紧凑面试记录。
+- 岗位 HR 面试数据保存到 `hr_interview_sessions` 和 `hr_interview_answers`。
 - 已完成 mock 评分和 LLM 评分统一入口。
 - 已支持 DashScope/OpenAI 兼容配置，不暴露真实 API Key。
-- 已完成前端单页应用，支持题库管理、练习和模拟面试。
+- 已完成前端单页应用，支持题库管理、练习和岗位 HR 面试。
+- 已完成工作台布局优化：左侧固定功能导航，产品名位于界面左上角；题库、面试、简历和岗位页面只展示各自相关信息。
+- 已将桌面端页面改为视口内工作区，长列表、题目编辑器、分析结果和岗位数据区在模块内部滚动，避免整页过长。
 - 已完成前后端目录拆分：后端在 `backend/`，前端静态文件在 `frontend/`。
 - 已合并本地 SQLite 数据库到 `backend/dev.db`，根目录不再保留活动 `dev.db`。
 - 已完成第一轮前端模块拆分：`app.js` 作为入口，API 请求、状态、渲染和工具函数拆成独立 ES Modules。
@@ -137,7 +145,8 @@ ai-interview-agent/
    - LLM 模式下继续优化提示词，让输出更稳定。
 4. 前端代码结构整理：
    - 已完成第一轮 ES Module 拆分。
-   - 后续继续按题库管理、练习流、模拟面试流拆分业务逻辑。
+   - 后续继续按题库管理、练习流、岗位 HR 面试流拆分业务逻辑。
+   - 新增页面继续沿用左侧导航 + 页面内状态 + 模块内滚动的工作台布局。
    - 暂时不引入构建工具，除非静态页面继续膨胀到难以维护。
 5. 中长期计划：
    - 增加 txt/md 素材上传，支持 LLM 生成和优化简历。
@@ -172,12 +181,27 @@ python -m pytest backend/tests --basetemp .pytest_tmp_chroma_final -> 6 passed
 python -m pytest backend/tests --basetemp .pytest_tmp_rerank -> 7 passed
 python -m pytest backend/tests --basetemp .pytest_tmp_single_llm -> 7 passed
 python -m pytest backend/tests --basetemp .pytest_tmp_cleanup -> 7 passed
+conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_hr_interview -> 8 passed
+conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_hr_stream -> 9 passed
+Browser 验证岗位 HR 面试 1 题流程 -> 左侧流式展示提问/反馈，最终轮保留本轮反馈，右侧最终报告正常
 Chroma 岗位索引重建验证 -> 180 个岗位 / 540 个片段，backend=chroma，collection=job_posts
 node --check frontend\app.js -> passed
 node --check frontend\api.js -> passed
 node --check frontend\render.js -> passed
 node --check frontend\state.js -> passed
 node --check frontend\utils.js -> passed
+node --check frontend\app.js -> passed (20260609-layout-1)
+node --check frontend\api.js -> passed (20260609-layout-1)
+node --check frontend\render.js -> passed (20260609-layout-1)
+node --check frontend\state.js -> passed (20260609-layout-1)
+node --check frontend\utils.js -> passed (20260609-layout-1)
+Browser 验证新版工作台布局 -> 左侧导航固定；题库/面试/简历/岗位页只展示自身内容；桌面视口无整页滚动，长内容在模块内滚动
+node --check frontend\app.js -> passed (20260609-chat-1)
+node --check frontend\api.js -> passed (20260609-chat-1)
+node --check frontend\render.js -> passed (20260609-chat-1)
+node --check frontend\state.js -> passed (20260609-chat-1)
+node --check frontend\utils.js -> passed (20260609-chat-1)
+Browser 验证模拟面试对话式界面 -> 中间聊天流、底部输入框、右侧进度/信息/记录正常；旧问题卡片样式已从面试主区移除
 GET /                  -> 200
 GET /static/app.js     -> 200
 GET /static/api.js     -> 200
@@ -193,8 +217,9 @@ GET /static/styles.css -> 200
 - 问答题、单选题、多选题都能提交答案。
 - 提交练习答案后先出现评分进度，再显示完整反馈。
 - 新增、编辑、删除题目后，题库列表能同步变化。
-- 模拟面试能按设置题数完成，并显示最终报告。
-- 页面顶部能显示评分模式和 LLM 配置状态，但不暴露 API Key。
+- 岗位 HR 面试能按设置题数完成，并显示最终报告。
+- 岗位 HR 面试模式下，先选择一份已分析简历和一个目标岗位，再开始面试；面试题应围绕岗位 JD、简历项目和能力缺口生成。
+- 左侧导航底部能显示评分模式和 LLM 配置状态，但不暴露 API Key。
 - “简历分析”Tab 可以上传 PDF/DOCX，并展示提取进度、分析进度、推荐岗位、技能画像、风险点和练习建议。
 - “简历分析”Tab 会展示基于岗位知识库的匹配岗位、匹配原因、能力缺口和准备重点。
 - “简历分析”Tab 在 LLM 模式下会展示岗位 Top 3 精排判断、推荐理由、风险点和简历优化建议。
@@ -222,23 +247,23 @@ GET /static/styles.css -> 200
 
 一句话简介：
 
-AI Interview Agent 是一个基于 FastAPI 的 AI 模拟面试与题库练习系统，支持题库管理、分类练习、模拟面试、答案评分反馈，并预留真实 LLM、RAG 和 LangGraph 扩展能力。
+AI Interview Agent 是一个基于 FastAPI 的 AI 模拟面试与题库练习系统，支持题库管理、分类练习、岗位 HR 面试、简历分析、答案评分反馈，并预留真实 LLM、RAG 和 LangGraph 扩展能力。
 
 简历描述：
 
 ```text
 AI 模拟面试系统 | FastAPI / SQLite / SQLAlchemy / JavaScript / OpenAI API
 
-- 设计并实现一个 AI 面试练习 MVP，支持题库管理、分类练习、模拟面试、答案评分反馈和面试报告展示。
-- 使用 FastAPI 构建后端接口，基于 SQLAlchemy 和 SQLite 管理题库、面试会话和答题记录。
-- 实现题库 CRUD、种子题库初始化、按分类/难度筛选、随机抽题和多轮模拟面试流程。
-- 前端使用原生 HTML/CSS/JavaScript 构建单页应用，支持题目新增/编辑/删除、练习评分展示、面试进度和最终报告展示。
+- 设计并实现一个 AI 面试练习 MVP，支持题库管理、分类练习、岗位 HR 面试、答案评分反馈和面试报告展示。
+- 使用 FastAPI 构建后端接口，基于 SQLAlchemy 和 SQLite 管理题库、岗位 HR 面试会话和答题记录。
+- 实现题库 CRUD、种子题库初始化、按分类/难度筛选、随机抽题练习，以及基于“简历 + 岗位 JD”的多轮 HR 面试流程。
+- 前端使用原生 HTML/CSS/JavaScript 构建单页应用，支持题目新增/编辑/删除、练习评分展示、岗位 HR 面试进度和最终报告展示。
 - 设计 mock 评分与 LLM 评分双模式，默认本地 mock 可运行，配置 OpenAI 或 DashScope API Key 后可切换 OpenAI 兼容 LLM 评分，并支持失败自动回退和结构化反馈展示。
 ```
 
 项目亮点：
 
-- 完整闭环：从题库、练习、评分到模拟面试报告都已跑通。
+- 完整闭环：从题库、练习、评分到岗位 HR 面试报告都已跑通。
 - 题库覆盖 10 个后端分类，支持初级、中级、高级和多种题型。
 - 默认 mock 评分，不需要 API Key 也能本地演示。
 - 支持 OpenAI 兼容 LLM 评分和阿里云百炼千问兼容模式。

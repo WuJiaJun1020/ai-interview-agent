@@ -1,4 +1,4 @@
-import { queryString } from "./utils.js?v=20260609-rag-7";
+import { queryString } from "./utils.js?v=20260609-chat-1";
 
 export async function request(path, options = {}) {
   const { timeoutMs = 8000, ...fetchOptions } = options;
@@ -56,22 +56,48 @@ export function deleteQuestionRequest(questionId) {
   return request(`/api/questions/${questionId}`, { method: "DELETE" });
 }
 
-export function startInterviewSession(payload) {
-  return request("/api/interview/sessions", {
-    method: "POST",
+export function startHrInterviewStream(payload) {
+  return fetchSse("/api/interview/hr-sessions/stream", {
     body: JSON.stringify(payload),
+    timeoutMs: 300000,
   });
 }
 
-export function submitInterviewAnswerRequest(sessionId, answer) {
-  return request(`/api/interview/sessions/${sessionId}/answer`, {
-    method: "POST",
+export function submitHrInterviewAnswerStream(sessionId, answer) {
+  return fetchSse(`/api/interview/hr-sessions/${sessionId}/answer/stream`, {
     body: JSON.stringify({ answer }),
+    timeoutMs: 360000,
   });
 }
 
-export function getInterviewReport(sessionId) {
-  return request(`/api/interview/sessions/${sessionId}/report`);
+export function getHrInterviewReport(sessionId) {
+  return request(`/api/interview/hr-sessions/${sessionId}/report`);
+}
+
+async function fetchSse(path, options = {}) {
+  const { timeoutMs = 300000, body } = options;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      signal: controller.signal,
+    });
+    if (!response.ok || !response.body) {
+      const message = await response.text();
+      throw new Error(message || `Request failed: ${response.status}`);
+    }
+    return response;
+  } catch (error) {
+    if (error.name === "AbortError" || String(error.message || "").includes("aborted")) {
+      throw new Error(`请求超时，已等待 ${Math.round(timeoutMs / 1000)} 秒，请稍后重试`);
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 export async function uploadResumeDocument(file) {

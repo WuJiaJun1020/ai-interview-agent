@@ -11,7 +11,7 @@
 - 当前默认数据库是 `backend/dev.db`，不提交 Git。
 - 本地向量库目录是 `backend/vector_store/`，不提交 Git。
 - 用户本地 `.env` 可能包含真实 DashScope/OpenAI API Key，禁止打印、提交或写入文档。
-- 当前工作区有较多未跟踪文件，它们主要是本轮新增的简历分析、岗位知识库和前端拆分模块，不是无用文件。
+- 当前最新新增功能是岗位 HR 面试：选择已分析简历和岗位库岗位后，根据“岗位 JD + 简历内容”进行模拟 HR/一面问答。
 
 ## 启动方式
 
@@ -39,7 +39,8 @@ uvicorn app.main:app --reload
 
 - 题库管理：初始化、列表、筛选、新增、编辑、删除。
 - 题库练习：抽题、提交答案、SSE 评分进度、mock/LLM 双模式评分。
-- 模拟面试：创建会话、逐题答题、最终报告。
+- 模拟面试：仅保留岗位 HR 面试，创建会话、逐题答题、最终报告。
+- 岗位 HR 面试：基于已分析简历和岗位知识库岗位创建会话、逐题答题、生成岗位匹配反馈和报告。
 - 简历分析：上传 PDF/DOCX，提取文本，保存历史，删除历史结果。
 - 岗位知识库：导入用户外部脚本采集好的 JSONL，按内容哈希去重。
 - 岗位向量索引：Chroma 本地持久化，旧本地哈希索引作为兜底。
@@ -75,6 +76,48 @@ uvicorn app.main:app --reload
 - LLM 失败时会回退 mock 分析。
 - `practice_plan` 已从岗位推荐结果中清理，前端不再展示“推荐练习方向”。
 
+## 当前岗位 HR 面试流程
+
+当前模拟面试页只保留岗位 HR 面试，题库相关练习统一在“题库练习”页完成：
+
+```text
+打开“模拟面试”
+-> 选择一份已分析简历
+-> 选择岗位知识库中的目标岗位
+-> 创建 HR 面试会话
+-> 根据简历正文 + 岗位 JD 流式生成当前问题
+-> 用户回答
+-> 根据岗位匹配度、项目证据、量化结果和表达结构流式评分反馈
+-> 继续流式生成下一题，直到本轮题数结束
+-> 最后一题结束后，左侧保留本轮问题、用户回答和面试官反馈
+-> 查看报告
+```
+
+关键接口：
+
+- `POST /api/interview/hr-sessions`
+- `POST /api/interview/hr-sessions/stream`
+- `POST /api/interview/hr-sessions/{session_id}/answer`
+- `POST /api/interview/hr-sessions/{session_id}/answer/stream`
+- `GET /api/interview/hr-sessions/{session_id}/report`
+
+关键文件：
+
+- `backend/app/services/hr_interview.py`
+- `backend/app/api/interview.py`
+- `backend/app/models/interview.py`
+- `backend/app/schemas/interview.py`
+- `frontend/app.js`
+- `frontend/api.js`
+- `frontend/render.js`
+
+注意：
+
+- 该功能需要先有简历历史和岗位库数据；否则前端下拉框会提示先上传/导入。
+- `SCORING_MODE=llm` 且配置 Key 时会尝试真实 LLM 生成问题和反馈；失败自动回退 mock。
+- 岗位 HR 面试没有固定参考答案，右侧记录会提示以岗位匹配反馈为准。
+- 前端优先使用 SSE 流式接口；非流式接口保留为兼容路径和后端测试入口。
+
 ## 当前简历分析布局
 
 用户已要求并已实现：
@@ -95,7 +138,7 @@ uvicorn app.main:app --reload
 前端缓存版本当前为：
 
 ```text
-20260609-rag-7
+20260609-chat-1
 ```
 
 ## 最近清理内容
@@ -112,6 +155,9 @@ uvicorn app.main:app --reload
 
 ```text
 conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_cleanup -> 7 passed
+conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_hr_interview -> 8 passed
+conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_hr_stream -> 9 passed
+Browser 验证岗位 HR 面试 1 题流程 -> 左侧流式展示提问/反馈，最终轮保留本轮反馈，右侧最终报告正常
 node --check frontend\app.js -> passed
 node --check frontend\api.js -> passed
 node --check frontend\render.js -> passed
@@ -122,8 +168,8 @@ node --check frontend\utils.js -> passed
 浏览器验证过前端加载：
 
 ```text
-/static/app.js?v=20260609-rag-7
-/static/styles.css?v=20260609-rag-7
+/static/app.js?v=20260609-chat-1
+/static/styles.css?v=20260609-chat-1
 ```
 
 控制台无错误。

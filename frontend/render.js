@@ -1,4 +1,4 @@
-import { state } from "./state.js?v=20260609-rag-7";
+import { state } from "./state.js?v=20260609-chat-1";
 import {
   $,
   escapeHtml,
@@ -7,7 +7,7 @@ import {
   reportNextSteps,
   scoreLevel,
   scoreSourceLabel,
-} from "./utils.js?v=20260609-rag-7";
+} from "./utils.js?v=20260609-chat-1";
 
 export function updateFilterSummary(filters) {
   $("filterSummary").textContent = `${filters.category || "全部分类"} · ${filters.difficulty || "全部难度"}`;
@@ -15,12 +15,16 @@ export function updateFilterSummary(filters) {
 
 export function updateInterviewConfigSummary(config) {
   const summary = [
-    `分类：${config.category || "全部"}`,
-    `难度：${config.difficulty || "全部"}`,
+    "模式：岗位 HR 面试",
+    `简历：${config.resumeLabel || "未选择"}`,
+    `岗位：${config.jobLabel || "未选择"}`,
     `题数：${config.total_questions}`,
   ].join(" · ");
   $("interviewConfigSummary").textContent = summary;
   $("interviewSummaryDetail").textContent = summary;
+  $("interviewJobInfo").textContent = config.jobLabel || "未选择";
+  $("interviewResumeInfo").textContent = config.resumeLabel || "未选择";
+  $("interviewQuestionTotalInfo").textContent = `${config.total_questions} 题`;
 }
 
 export function updatePracticeSummary() {
@@ -123,6 +127,172 @@ export function renderQuestion(target, question) {
   `;
 }
 
+export function renderHrQuestion(target, question, context = null) {
+  target.classList.remove("empty");
+  const focus = question.focus || [];
+  target.innerHTML = `
+    ${renderHrIntroMessage(context)}
+    ${state.interviewLogs.length ? "" : renderChatMessage({
+      role: "user",
+      body: "<p>好的，开始吧！</p>",
+    })}
+    ${renderHrHistoryMessages()}
+    ${renderChatMessage({
+      role: "ai",
+      body: `
+        <p>${escapeHtml(question.question)}</p>
+        ${focus.length ? `<div class="chat-focus-list"><strong>考察重点</strong>${renderPointList(focus)}</div>` : ""}
+      `,
+    })}
+  `;
+  scrollChatToBottom(target);
+}
+
+export function renderHrStreamText(target, title, text, context = null) {
+  target.classList.remove("empty");
+  target.innerHTML = `
+    ${renderHrIntroMessage(context)}
+    ${renderChatMessage({
+      role: "user",
+      body: "<p>好的，开始吧！</p>",
+      time: currentTimeText(),
+    })}
+    ${renderChatMessage({
+      role: "ai",
+      body: text
+        ? `<p>${escapeHtml(text)}</p>`
+        : `<div class="typing-indicator" aria-label="${escapeHtml(title)}"><span></span><span></span><span></span></div>`,
+      time: text ? currentTimeText() : title,
+    })}
+  `;
+  scrollChatToBottom(target);
+}
+
+export function renderHrTurnSummary(target, turn) {
+  target.classList.remove("empty");
+  target.innerHTML = `
+    ${renderHrIntroMessage(state.hrInterviewContext)}
+    ${renderHrHistoryMessages()}
+    ${renderChatMessage({
+      role: "ai",
+      body: `
+        <p>本轮岗位 HR 面试已结束。你可以在右侧查看完整报告和每题记录。</p>
+        <div class="chat-focus-list">
+          <strong>最后一题反馈</strong>
+          <p>${escapeHtml(turn.feedback)}</p>
+        </div>
+      `,
+      time: currentTimeText(),
+    })}
+  `;
+  scrollChatToBottom(target);
+}
+
+export function renderHrTurnStream(target, turn) {
+  target.classList.remove("empty");
+  const feedbackText = turn.feedbackText || "面试官正在阅读你的回答...";
+  const nextQuestionHtml = turn.nextQuestionText
+    ? renderChatMessage({
+        role: "ai",
+        body: `<p>${escapeHtml(turn.nextQuestionText)}</p>`,
+        time: currentTimeText(),
+      })
+    : "";
+
+  target.innerHTML = `
+    ${renderHrIntroMessage(turn.context)}
+    ${renderHrHistoryMessages()}
+    ${renderChatMessage({
+      role: "ai",
+      body: `<p>${escapeHtml(turn.question || "")}</p>`,
+    })}
+    ${renderChatMessage({
+      role: "user",
+      body: `<p>${escapeHtml(turn.answer || "")}</p>`,
+      time: currentTimeText(),
+    })}
+    ${renderChatMessage({
+      role: "ai",
+      body: `<p>${escapeHtml(feedbackText)}</p>${turn.feedbackText ? "" : '<div class="typing-indicator compact"><span></span><span></span><span></span></div>'}`,
+      time: "面试官反馈",
+    })}
+    ${nextQuestionHtml}
+  `;
+  scrollChatToBottom(target);
+}
+
+function renderHrIntroMessage(context = null) {
+  const jobTitle = context?.job_title || "目标岗位";
+  const company = context?.company || "岗位库";
+  const resume = context?.resume_filename || "已选择简历";
+  return renderChatMessage({
+    role: "ai",
+    body: `
+      <p>你好，我是你的 AI 面试官。</p>
+      <p>我们将开始岗位 HR 面试。本轮会围绕 ${escapeHtml(company)} · ${escapeHtml(jobTitle)}，结合 ${escapeHtml(resume)} 进行提问。</p>
+      <p>请尽量结合你的经历回答，展示你的思考和能力。</p>
+    `,
+    time: "面试开始",
+  });
+}
+
+function renderHrHistoryMessages() {
+  if (!state.interviewLogs.length) return "";
+  return state.interviewLogs
+    .map((turn) =>
+      [
+        renderChatMessage({
+          role: "ai",
+          body: `<p>${escapeHtml(turn.question || `第 ${turn.index} 题`)}</p>`,
+        }),
+        renderChatMessage({
+          role: "user",
+          body: `<p>${escapeHtml(turn.answer || "")}</p>`,
+        }),
+        renderChatMessage({
+          role: "ai",
+          body: `
+            <p>${escapeHtml(turn.feedback || "")}</p>
+            <div class="chat-score-line">
+              <span>${turn.score} 分</span>
+              <span>${escapeHtml(scoreLevel(turn.score).label)}</span>
+            </div>
+          `,
+          time: "面试官反馈",
+        }),
+      ].join(""),
+    )
+    .join("");
+}
+
+function renderChatMessage({ role, body, time = currentTimeText() }) {
+  const isUser = role === "user";
+  return `
+    <div class="chat-message ${isUser ? "user-message" : "ai-message"}">
+      ${isUser ? "" : '<div class="chat-avatar bot-avatar">AI</div>'}
+      <div class="chat-message-content">
+        <div class="chat-bubble">${body}</div>
+        <span class="chat-time">${escapeHtml(time)}</span>
+      </div>
+      ${isUser ? '<div class="chat-avatar user-avatar">我</div>' : ""}
+    </div>
+  `;
+}
+
+function currentTimeText() {
+  return new Intl.DateTimeFormat("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date());
+}
+
+function scrollChatToBottom(target) {
+  window.requestAnimationFrame(() => {
+    target.scrollTop = target.scrollHeight;
+  });
+}
+
 export function renderPracticeResult(result) {
   const target = $("practiceResult");
   const source = scoreSourceLabel(result.source);
@@ -194,11 +364,12 @@ export function renderAnalysisSections(result) {
 }
 
 export function updateInterviewProgress(answeredCount, totalQuestions) {
-  $("interviewProgress").textContent = `${answeredCount}/${totalQuestions}`;
-  const percent = totalQuestions ? Math.round((answeredCount / totalQuestions) * 100) : 0;
+  const currentStep = Math.min(answeredCount + 1, totalQuestions || 1);
+  const isFinished = answeredCount >= totalQuestions && totalQuestions > 0;
+  $("interviewProgress").textContent = isFinished ? "已完成" : `第 ${currentStep}/${totalQuestions} 题`;
+  const percent = totalQuestions ? Math.round((currentStep / totalQuestions) * 100) : 0;
   $("interviewProgressBar").style.width = `${percent}%`;
-  $("interviewSummary").textContent =
-    answeredCount >= totalQuestions && totalQuestions > 0 ? "已完成" : `进行中：${answeredCount}/${totalQuestions}`;
+  $("interviewSummary").textContent = isFinished ? "已完成" : `${currentStep} / ${totalQuestions}`;
 }
 
 export function renderInterviewLogs(report = null) {
@@ -208,9 +379,9 @@ export function renderInterviewLogs(report = null) {
   const currentLevel = scoreLevel(currentAverage);
   const summaryHtml = state.interviewLogs.length
     ? `
-      <section class="interview-summary-card">
+      <section class="interview-summary-card compact-record-summary">
         <div>
-          <span class="overview-label">当前平均分</span>
+          <span class="overview-label">平均分</span>
           <strong>${currentAverage} 分</strong>
         </div>
         <div>
@@ -229,7 +400,7 @@ export function renderInterviewLogs(report = null) {
     .join("");
 
   const reportHtml = report ? renderFinalReport(report) : "";
-  target.innerHTML = `<div class="interview-log">${summaryHtml}${logsHtml || '<p class="meta">还没有提交回答。</p>'}${reportHtml}</div>`;
+  target.innerHTML = `<div class="interview-log">${summaryHtml}${logsHtml || '<p class="meta">暂无面试记录，面试过程中会自动保存。</p>'}${reportHtml}</div>`;
 }
 
 export function renderResumeResult(payload) {
@@ -567,21 +738,19 @@ function renderInterviewLogItem(item) {
   const level = scoreLevel(item.score);
   const source = scoreSourceLabel(item.source);
   return `
-    <article class="interview-card">
-      <div class="interview-card-header">
+    <article class="interview-record-item">
+      <div class="interview-record-item-header">
         <strong>第 ${item.index} 题</strong>
-        <div class="interview-score-group">
-          <span class="source-badge ${source.className}">${source.label}</span>
-          <span class="score-badge ${level.className}">${level.label}</span>
-          <span class="interview-score">${item.score} 分</span>
-        </div>
+        <span class="interview-score">${item.score} 分</span>
       </div>
-      <p class="meta">你的回答：${escapeHtml(item.answer)}</p>
-      <p>${escapeHtml(item.feedback)}</p>
-      ${renderAnalysisSections(item)}
+      <p>${escapeHtml(item.question || "岗位 HR 面试问题")}</p>
+      <div class="interview-record-tags">
+        <span class="source-badge ${source.className}">${source.label}</span>
+        <span class="score-badge ${level.className}">${level.label}</span>
+      </div>
       <details class="answer-details">
-        <summary>查看参考答案</summary>
-        <p>${escapeHtml(item.standardAnswer)}</p>
+        <summary>查看反馈</summary>
+        <p>${escapeHtml(item.feedback)}</p>
       </details>
     </article>
   `;
