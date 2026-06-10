@@ -15,7 +15,7 @@ import {
   startHrInterviewStream,
   submitHrInterviewAnswerStream,
   uploadResumeDocument,
-} from "./api.js?v=20260610-practice-3";
+} from "./api.js?v=20260610-readme-shots-1";
 import {
   renderFilterOptions,
   renderInterviewLogs,
@@ -43,9 +43,9 @@ import {
   updateInterviewProgress,
   updateInterviewRecordsLayout,
   updatePracticeSummary,
-} from "./render.js?v=20260610-practice-3";
-import { state } from "./state.js?v=20260610-practice-3";
-import { $, escapeHtml, isChoiceType, parseError } from "./utils.js?v=20260610-practice-3";
+} from "./render.js?v=20260610-readme-shots-1";
+import { state } from "./state.js?v=20260610-readme-shots-1";
+import { $, escapeHtml, isChoiceType, parseError } from "./utils.js?v=20260610-readme-shots-1";
 
 function selectedFilters() {
   return {
@@ -635,15 +635,31 @@ async function submitJobCollect(event) {
 function bindTabs() {
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
-      document.querySelectorAll(".view").forEach((item) => item.classList.remove("active"));
-      tab.classList.add("active");
-      $(`${tab.dataset.tab}View`).classList.add("active");
-      if (tab.dataset.tab === "jobs") {
-        refreshJobVectorStatus({ showPending: !state.jobVectorStatus });
-      }
+      activateTab(tab.dataset.tab, { updateHash: true });
     });
   });
+}
+
+function activateTab(tabName, { updateHash = false } = {}) {
+  const tab = document.querySelector(`.tab[data-tab="${tabName}"]`);
+  const view = document.getElementById(`${tabName}View`);
+  if (!tab || !view) return;
+
+  document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
+  document.querySelectorAll(".view").forEach((item) => item.classList.remove("active"));
+  tab.classList.add("active");
+  view.classList.add("active");
+  if (updateHash && window.location.hash !== `#${tabName}`) {
+    window.history.replaceState(null, "", `#${tabName}`);
+  }
+  if (tabName === "jobs") {
+    refreshJobVectorStatus({ showPending: !state.jobVectorStatus });
+  }
+}
+
+function activateTabFromHash() {
+  const tabName = window.location.hash.replace("#", "") || "practice";
+  activateTab(tabName);
 }
 
 function bindActions() {
@@ -715,9 +731,11 @@ function bindActions() {
 function boot() {
   bindTabs();
   bindActions();
+  window.addEventListener("hashchange", activateTabFromHash);
   updateFilterSummary(selectedFilters());
   updatePracticeSummary();
   updateInterviewConfigSummary(selectedInterviewConfig());
+  activateTabFromHash();
   setQuestionDrawerOpen(false);
   updateInterviewRecordsLayout();
   updateAnswerMeta("practiceAnswer", "practiceAnswerMeta");

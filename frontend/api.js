@@ -1,4 +1,4 @@
-import { queryString } from "./utils.js?v=20260610-practice-3";
+import { queryString } from "./utils.js?v=20260610-readme-shots-1";
 
 export async function request(path, options = {}) {
   const { timeoutMs = 8000, ...fetchOptions } = options;

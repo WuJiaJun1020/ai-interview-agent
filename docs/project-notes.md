@@ -91,6 +91,7 @@
 - 当前 RAG 岗位检索优先使用 Chroma，内置哈希 embedding，后续可升级为真实 embedding API。
 - 已添加后端冒烟测试：`backend/tests/test_smoke.py`。
 - 已维护 `README.md` 和 `AGENTS.md`。
+- README 已新增核心页面截图，图片位于 `docs/screenshots/`；前端支持通过 `#practice`、`#interview`、`#resume`、`#jobs` 直达对应功能页，方便展示和截图。
 
 ## 当前架构
 

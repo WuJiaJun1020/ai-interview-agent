@@ -150,6 +150,8 @@ uvicorn app.main:app --reload
 - 已添加 `.env.example`。
 - 已更新 `.gitignore`，忽略本地数据库文件，例如 `dev.db`。
 - 已完善 `README.md`，包含功能、启动、LLM 配置、安全注意事项和后续计划。
+- README 已新增四个核心页面截图：题库练习、模拟面试、简历分析和岗位知识库，截图保存在 `docs/screenshots/`。
+- 前端支持通过 `#practice`、`#interview`、`#resume`、`#jobs` hash 直达对应功能页，方便演示和截图。
 - 已将任务目标、开发进度、发布检查和项目展示材料合并到 `docs/project-notes.md`。
 - 已添加后端自动化冒烟测试：`backend/tests/test_smoke.py`。
 - 已添加测试依赖 `pytest`。

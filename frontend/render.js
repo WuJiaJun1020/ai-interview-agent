@@ -1,4 +1,4 @@
-import { state } from "./state.js?v=20260610-practice-3";
+import { state } from "./state.js?v=20260610-readme-shots-1";
 import {
   $,
   escapeHtml,
@@ -8,7 +8,7 @@ import {
   scoreLevel,
   scoreSourceLabel,
   isChoiceType,
-} from "./utils.js?v=20260610-practice-3";
+} from "./utils.js?v=20260610-readme-shots-1";
 
 export function updateFilterSummary(filters) {
   $("filterSummary").textContent = `${filters.category || "全部分类"} · ${filters.difficulty || "全部难度"}`;

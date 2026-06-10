@@ -22,6 +22,24 @@ AI Interview Agent 是一个 AI 模拟面试与题库练习 MVP。当前版本�
 - 评分：mock 规则评分，预留 OpenAI 兼容 Chat Completions 评分
 - 环境：Conda
 
+## 界面预览
+
+### 题库练习
+
+![题库练习](docs/screenshots/practice.png)
+
+### 模拟面试
+
+![模拟面试](docs/screenshots/interview.png)
+
+### 简历分析
+
+![简历分析](docs/screenshots/resume.png)
+
+### 岗位知识库
+
+![岗位知识库](docs/screenshots/jobs.png)
+
 ## 项目结构
 
 ```text
