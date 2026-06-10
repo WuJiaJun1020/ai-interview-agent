@@ -9,6 +9,12 @@ from openai import OpenAI
 from app.core.config import settings
 from app.models.job import JobPost
 from app.models.resume import Resume
+from app.services.hr_interview_graph import (
+    HrInterviewStrategy,
+    plan_hr_question_strategy,
+    plan_hr_review_strategy,
+    strategy_payload,
+)
 
 
 @dataclass
@@ -28,6 +34,31 @@ class HrAnswerReview:
     source: str
 
 
+@dataclass
+class HrAttitudeAssessment:
+    should_terminate: bool
+    reason: str | None
+    label: str
+    source: str
+
+
+NEGATIVE_ATTITUDE_KEYWORDS = (
+    "重新问",
+    "换个问题",
+    "不想回答",
+    "不回答",
+    "不会回答",
+    "拒绝回答",
+    "随便",
+    "没什么好说",
+    "不知道",
+    "无所谓",
+    "别问了",
+    "不配合",
+    "不合理",
+)
+
+
 def generate_hr_question(
     resume: Resume,
     job: JobPost,
@@ -35,13 +66,14 @@ def generate_hr_question(
     question_index: int,
     total_questions: int,
 ) -> HrQuestion:
+    strategy = plan_hr_question_strategy(resume, job, previous_turns, question_index, total_questions)
     if settings.scoring_mode.lower() == "llm" and settings.llm_api_key:
         try:
-            return _generate_hr_question_with_llm(resume, job, previous_turns, question_index, total_questions)
+            return _generate_hr_question_with_llm(resume, job, previous_turns, question_index, total_questions, strategy)
         except Exception:
-            return _generate_hr_question_with_mock(resume, job, previous_turns, question_index, total_questions)
+            return _generate_hr_question_with_mock(resume, job, previous_turns, question_index, total_questions, strategy)
 
-    return _generate_hr_question_with_mock(resume, job, previous_turns, question_index, total_questions)
+    return _generate_hr_question_with_mock(resume, job, previous_turns, question_index, total_questions, strategy)
 
 
 def stream_hr_question(
@@ -51,14 +83,15 @@ def stream_hr_question(
     question_index: int,
     total_questions: int,
 ) -> Iterator[dict[str, Any]]:
+    strategy = plan_hr_question_strategy(resume, job, previous_turns, question_index, total_questions)
     if settings.scoring_mode.lower() == "llm" and settings.llm_api_key:
         try:
-            yield from _stream_hr_question_with_llm(resume, job, previous_turns, question_index, total_questions)
+            yield from _stream_hr_question_with_llm(resume, job, previous_turns, question_index, total_questions, strategy)
             return
         except Exception as exc:
             yield {"type": "progress", "message": f"LLM 流式生成暂不可用，已回退本地面试官：{exc}"}
 
-    question = _generate_hr_question_with_mock(resume, job, previous_turns, question_index, total_questions)
+    question = _generate_hr_question_with_mock(resume, job, previous_turns, question_index, total_questions, strategy)
     yield from _mock_delta_events(question.question)
     yield {"type": "result", "question": question}
 
@@ -70,15 +103,16 @@ def review_hr_answer(
     answer: str,
     previous_turns: list[dict[str, Any]],
 ) -> HrAnswerReview:
+    strategy = plan_hr_review_strategy(resume, job, question, answer, previous_turns)
     if settings.scoring_mode.lower() == "llm" and settings.llm_api_key:
         try:
-            return _review_hr_answer_with_llm(resume, job, question, answer, previous_turns)
+            return _review_hr_answer_with_llm(resume, job, question, answer, previous_turns, strategy)
         except Exception as exc:
-            fallback = _review_hr_answer_with_mock(resume, job, question, answer)
+            fallback = _review_hr_answer_with_mock(resume, job, question, answer, strategy)
             fallback.feedback = f"{fallback.feedback}\n\nLLM 面试官暂不可用，已使用本地 mock 反馈：{exc}"
             return fallback
 
-    return _review_hr_answer_with_mock(resume, job, question, answer)
+    return _review_hr_answer_with_mock(resume, job, question, answer, strategy)
 
 
 def stream_hr_answer_review(
@@ -88,16 +122,86 @@ def stream_hr_answer_review(
     answer: str,
     previous_turns: list[dict[str, Any]],
 ) -> Iterator[dict[str, Any]]:
+    strategy = plan_hr_review_strategy(resume, job, question, answer, previous_turns)
     if settings.scoring_mode.lower() == "llm" and settings.llm_api_key:
         try:
-            yield from _stream_hr_answer_review_with_llm(resume, job, question, answer, previous_turns)
+            yield from _stream_hr_answer_review_with_llm(resume, job, question, answer, previous_turns, strategy)
             return
         except Exception as exc:
             yield {"type": "progress", "message": f"LLM 流式反馈暂不可用，已回退本地评分：{exc}"}
 
-    review = _review_hr_answer_with_mock(resume, job, question, answer)
+    review = _review_hr_answer_with_mock(resume, job, question, answer, strategy)
     yield from _mock_delta_events(review.feedback)
     yield {"type": "result", "review": review}
+
+
+def assess_hr_answer_attitude(
+    resume: Resume,
+    job: JobPost,
+    question: str,
+    answer: str,
+    previous_turns: list[dict[str, Any]],
+) -> HrAttitudeAssessment:
+    if settings.scoring_mode.lower() == "llm" and settings.llm_api_key:
+        try:
+            return _assess_hr_answer_attitude_with_llm(resume, job, question, answer, previous_turns)
+        except Exception:
+            pass
+
+    reason = heuristic_hr_attitude_reason(answer)
+    return HrAttitudeAssessment(
+        should_terminate=bool(reason),
+        reason=reason,
+        label="refusal" if reason else "cooperative",
+        source="mock",
+    )
+
+
+def heuristic_hr_attitude_reason(answer: str) -> str | None:
+    normalized = str(answer or "").strip().lower()
+    if len(normalized) > 80:
+        return None
+    if any(keyword.lower() in normalized for keyword in NEGATIVE_ATTITUDE_KEYWORDS):
+        return "候选人连续或明显拒绝配合当前面试问题，面试已提前终止。"
+    return None
+
+
+def _assess_hr_answer_attitude_with_llm(
+    resume: Resume,
+    job: JobPost,
+    question: str,
+    answer: str,
+    previous_turns: list[dict[str, Any]],
+) -> HrAttitudeAssessment:
+    data = _call_llm_json(
+        system=(
+            "你是一位严谨的面试流程观察员。你必须只输出 JSON，不要输出 markdown。"
+            "你的任务不是评价能力高低，而是判断候选人是否仍在配合当前面试。"
+            "只有在候选人明确拒答、持续要求换题、态度对抗、辱骂、故意跑题或表示不愿继续面试时，才 should_terminate=true。"
+            "回答很短、不会某项技术、表达不完整、能力不足，都不等于消极拒答，不应终止。"
+            "JSON 字段为 should_terminate, label, reason。label 可为 cooperative, vague, unable, off_topic, refusal, hostile。"
+        ),
+        payload={
+            "resume": _resume_excerpt(resume.content),
+            "job": _job_context(job),
+            "previous_turns": previous_turns[-4:],
+            "question": question,
+            "answer": answer,
+            "decision_rule": "仅当候选人明显不配合或拒绝继续当前面试时终止；普通低质量回答继续面试并交由评分处理。",
+        },
+        temperature=0,
+    )
+    should_terminate = _as_bool(data.get("should_terminate"))
+    label = str(data.get("label") or ("refusal" if should_terminate else "cooperative")).strip()
+    reason = str(data.get("reason") or "").strip()
+    if should_terminate and not reason:
+        reason = "候选人明显拒绝配合当前面试问题，面试已提前终止。"
+    return HrAttitudeAssessment(
+        should_terminate=should_terminate,
+        reason=reason or None,
+        label=label,
+        source="llm",
+    )
 
 
 def build_hr_recommendation(average_score: float) -> str:
@@ -116,6 +220,7 @@ def _stream_hr_question_with_llm(
     previous_turns: list[dict[str, Any]],
     question_index: int,
     total_questions: int,
+    strategy: HrInterviewStrategy,
 ) -> Iterator[dict[str, Any]]:
     content = ""
     emitted = ""
@@ -123,6 +228,7 @@ def _stream_hr_question_with_llm(
         system=(
             "你是一位技术招聘 HR 和一面面试官。你必须只输出 JSON，不要输出 markdown。"
             "你正在根据候选人的简历和目标岗位 JD 进行模拟面试。"
+            "你会收到一个 interview_strategy，它来自 LangGraph 面试状态图；必须优先遵循其中的 stage、intent 和 guidance。"
             "问题要像真实面试官提出的一样具体、自然、可回答，不要一次问太多问题。"
             "JSON 字段为 question, focus。focus 必须是字符串数组。"
         ),
@@ -132,7 +238,8 @@ def _stream_hr_question_with_llm(
             "previous_turns": previous_turns[-6:],
             "question_index": question_index,
             "total_questions": total_questions,
-            "task": "生成下一道岗位 HR 面试问题，优先追问简历和 JD 的交集、风险点、项目证据和岗位动机。",
+            "interview_strategy": strategy_payload(strategy),
+            "task": "生成下一道岗位 HR 面试问题。若 strategy.decision 为 follow_up，需要明显承接上一轮回答继续追问；不要重复已经覆盖的主题。",
         },
         temperature=0.35,
     ):
@@ -147,11 +254,14 @@ def _stream_hr_question_with_llm(
     question_text = str(data.get("question") or emitted).strip()
     focus = _as_string_list(data.get("focus"))
     if not question_text:
-        fallback = _generate_hr_question_with_mock(resume, job, previous_turns, question_index, total_questions)
+        fallback = _generate_hr_question_with_mock(resume, job, previous_turns, question_index, total_questions, strategy)
         yield from _mock_delta_events(fallback.question)
         yield {"type": "result", "question": fallback}
         return
-    yield {"type": "result", "question": HrQuestion(question=question_text, focus=focus or _default_focus(job), source="llm")}
+    yield {
+        "type": "result",
+        "question": HrQuestion(question=question_text, focus=focus or strategy.focus or _default_focus(job), source="llm"),
+    }
 
 
 def _stream_hr_answer_review_with_llm(
@@ -160,6 +270,7 @@ def _stream_hr_answer_review_with_llm(
     question: str,
     answer: str,
     previous_turns: list[dict[str, Any]],
+    strategy: HrInterviewStrategy,
 ) -> Iterator[dict[str, Any]]:
     content = ""
     emitted = ""
@@ -167,6 +278,7 @@ def _stream_hr_answer_review_with_llm(
         system=(
             "你是一位严谨但友好的技术面试官。你必须只输出 JSON，不要输出 markdown。"
             "请基于目标岗位 JD、候选人简历、当前问题和回答做面试反馈。"
+            "你会收到一个 interview_strategy，它来自 LangGraph 面试状态图；反馈要体现策略中的 risk_flags 和下一轮追问方向。"
             "JSON 字段为 score, feedback, strengths, weaknesses, suggestions。"
             "score 必须是 0-100 整数；strengths、weaknesses、suggestions 必须是字符串数组。"
         ),
@@ -176,6 +288,7 @@ def _stream_hr_answer_review_with_llm(
             "previous_turns": previous_turns[-6:],
             "question": question,
             "answer": answer,
+            "interview_strategy": strategy_payload(strategy),
             "score_rule": "高分回答应当贴合岗位要求、有具体项目证据、说明行动和结果，并能体现复盘。",
         },
         temperature=0.2,
@@ -205,11 +318,13 @@ def _generate_hr_question_with_llm(
     previous_turns: list[dict[str, Any]],
     question_index: int,
     total_questions: int,
+    strategy: HrInterviewStrategy,
 ) -> HrQuestion:
     data = _call_llm_json(
         system=(
             "你是一位技术招聘 HR 和一面面试官。你必须只输出 JSON，不要输出 markdown。"
             "你正在根据候选人的简历和目标岗位 JD 进行模拟面试。"
+            "你会收到一个 interview_strategy，它来自 LangGraph 面试状态图；必须优先遵循其中的 stage、intent 和 guidance。"
             "问题要像真实面试官提出的一样具体、自然、可回答，不要一次问太多问题。"
             "JSON 字段为 question, focus。focus 必须是字符串数组。"
         ),
@@ -219,15 +334,16 @@ def _generate_hr_question_with_llm(
             "previous_turns": previous_turns[-6:],
             "question_index": question_index,
             "total_questions": total_questions,
-            "task": "生成下一道岗位 HR 面试问题，优先追问简历和 JD 的交集、风险点、项目证据和岗位动机。",
+            "interview_strategy": strategy_payload(strategy),
+            "task": "生成下一道岗位 HR 面试问题。若 strategy.decision 为 follow_up，需要明显承接上一轮回答继续追问；不要重复已经覆盖的主题。",
         },
         temperature=0.35,
     )
     question = str(data.get("question") or "").strip()
     focus = _as_string_list(data.get("focus"))
     if not question:
-        return _generate_hr_question_with_mock(resume, job, previous_turns, question_index, total_questions)
-    return HrQuestion(question=question, focus=focus or _default_focus(job), source="llm")
+        return _generate_hr_question_with_mock(resume, job, previous_turns, question_index, total_questions, strategy)
+    return HrQuestion(question=question, focus=focus or strategy.focus or _default_focus(job), source="llm")
 
 
 def _review_hr_answer_with_llm(
@@ -236,11 +352,13 @@ def _review_hr_answer_with_llm(
     question: str,
     answer: str,
     previous_turns: list[dict[str, Any]],
+    strategy: HrInterviewStrategy,
 ) -> HrAnswerReview:
     data = _call_llm_json(
         system=(
             "你是一位严谨但友好的技术面试官。你必须只输出 JSON，不要输出 markdown。"
             "请基于目标岗位 JD、候选人简历、当前问题和回答做面试反馈。"
+            "你会收到一个 interview_strategy，它来自 LangGraph 面试状态图；反馈要体现策略中的 risk_flags 和下一轮追问方向。"
             "JSON 字段为 score, feedback, strengths, weaknesses, suggestions。"
             "score 必须是 0-100 整数；strengths、weaknesses、suggestions 必须是字符串数组。"
         ),
@@ -250,6 +368,7 @@ def _review_hr_answer_with_llm(
             "previous_turns": previous_turns[-6:],
             "question": question,
             "answer": answer,
+            "interview_strategy": strategy_payload(strategy),
             "score_rule": "高分回答应当贴合岗位要求、有具体项目证据、说明行动和结果，并能体现复盘。",
         },
         temperature=0.2,
@@ -270,35 +389,59 @@ def _generate_hr_question_with_mock(
     previous_turns: list[dict[str, Any]],
     question_index: int,
     total_questions: int,
+    strategy: HrInterviewStrategy,
 ) -> HrQuestion:
     skills = _job_skills(job)
     resume_hits = [skill for skill in skills if skill.lower() in resume.content.lower()]
-    primary_skill = (resume_hits or skills or ["项目经验"])[0]
+    primary_skill = strategy.primary_focus or (resume_hits or skills or ["项目经验"])[0]
     missing_skill = next((skill for skill in skills if skill.lower() not in resume.content.lower()), None)
 
-    templates = [
-        f"你为什么想投递 {job.company} 的 {job.title}？请结合你简历里最相关的一段经历说明匹配点。",
-        f"岗位要求里提到了 {primary_skill}。请讲一个你在项目中实际使用 {primary_skill} 的场景，包括你负责的部分和结果。",
-        f"如果入职后需要快速熟悉这个岗位的业务和技术栈，你会如何安排前两周的学习和产出？",
-        f"请复盘一次你在项目中遇到的技术难点或排查问题的经历，重点说清楚判断过程和取舍。",
-    ]
+    templates = [strategy.question_seed] if strategy.question_seed else []
+    if strategy.decision == "follow_up":
+        templates.extend(
+            [
+                f"我想继续追问刚才的回答。请你补充一个具体项目：当时背景是什么、你亲自负责了什么、最后有什么量化结果？",
+                f"刚才你提到了方向，但证据还不够。请围绕 {primary_skill} 讲清一个真实场景，尤其是你的个人动作和结果。",
+            ]
+        )
+    elif strategy.stage == "gap_probe":
+        gap = missing_skill or primary_skill
+        templates.append(f"JD 中提到 {gap}，但你的简历体现不多。你会如何补足，并在入职初期证明自己能胜任？")
+    elif strategy.stage == "problem_solving":
+        templates.append(f"请复盘一次和 {primary_skill} 相关的技术难点或排查问题，重点说清楚判断过程、取舍和最终结果。")
+    elif strategy.stage == "closing_summary":
+        templates.append(f"最后请你总结一下，为什么你适合 {job.title}，以及入职后最能立刻贡献价值的地方是什么？")
+    else:
+        templates.extend(
+            [
+                f"你为什么想投递 {job.company} 的 {job.title}？请结合你简历里最相关的一段经历说明匹配点。",
+                f"岗位要求里提到了 {primary_skill}。请讲一个你在项目中实际使用 {primary_skill} 的场景，包括你负责的部分和结果。",
+                f"如果入职后需要快速熟悉这个岗位的业务和技术栈，你会如何安排前两周的学习和产出？",
+                f"请复盘一次你在项目中遇到的技术难点或排查问题的经历，重点说清楚判断过程和取舍。",
+            ]
+        )
     if missing_skill:
         templates.append(f"JD 中还提到了 {missing_skill}，但你的简历体现不多。你会如何补足这个能力，并在面试中证明自己能胜任？")
 
     used_questions = {str(turn.get("question") or "") for turn in previous_turns}
-    for offset in range(len(templates)):
-        question = templates[(question_index - 1 + offset) % len(templates)]
+    for question in templates:
         if question not in used_questions:
-            return HrQuestion(question=question, focus=_default_focus(job), source="mock")
+            return HrQuestion(question=question, focus=strategy.focus or _default_focus(job), source="mock")
 
     return HrQuestion(
         question=f"最后请你总结一下，为什么你适合 {job.title}，以及入职后最能立刻贡献价值的地方是什么？",
-        focus=["岗位动机", "简历证据", "短期贡献"],
+        focus=strategy.focus or ["岗位动机", "简历证据", "短期贡献"],
         source="mock",
     )
 
 
-def _review_hr_answer_with_mock(resume: Resume, job: JobPost, question: str, answer: str) -> HrAnswerReview:
+def _review_hr_answer_with_mock(
+    resume: Resume,
+    job: JobPost,
+    question: str,
+    answer: str,
+    strategy: HrInterviewStrategy,
+) -> HrAnswerReview:
     skills = _job_skills(job)
     answer_lower = answer.lower()
     hits = [skill for skill in skills if skill.lower() in answer_lower]
@@ -339,14 +482,37 @@ def _review_hr_answer_with_mock(resume: Resume, job: JobPost, question: str, ans
         "下一版回答可以按 STAR 结构组织：背景、任务、行动、结果。",
         f"建议主动连接 {job.title} 的岗位要求，说明自己能解决什么具体问题。",
     ]
+    if strategy.decision == "follow_up" or strategy.risk_flags:
+        suggestions.append(f"下一轮面试会优先追问：{'、'.join(strategy.focus[:3])}。")
+    if strategy.primary_focus and strategy.primary_focus not in suggestions[-1]:
+        suggestions.append(f"请准备一个能证明 {strategy.primary_focus} 的真实项目例子，最好包含个人贡献和数据结果。")
+
+    feedback_parts = [f"已根据目标岗位 JD 和简历内容完成本轮岗位面试反馈。当前策略阶段：{_stage_label(strategy.stage)}。"]
+    if strategy.risk_flags:
+        feedback_parts.append(f"本轮主要风险是：{'、'.join(strategy.risk_flags)}。")
+    feedback_parts.append(strategy.guidance)
+
     return HrAnswerReview(
         score=score,
-        feedback="已根据目标岗位 JD 和简历内容完成本轮岗位面试反馈。",
+        feedback=" ".join(feedback_parts),
         strengths=strengths,
         weaknesses=weaknesses or ["暂未发现明显短板，可以继续提高回答的结构化程度。"],
         suggestions=suggestions,
         source="mock",
     )
+
+
+def _stage_label(stage: str) -> str:
+    labels = {
+        "opening_alignment": "开场匹配",
+        "project_evidence": "项目证据",
+        "evidence_follow_up": "证据追问",
+        "problem_solving": "问题解决",
+        "gap_probe": "能力缺口",
+        "closing_summary": "收束总结",
+        "answer_review": "回答评估",
+    }
+    return labels.get(stage, "项目证据")
 
 
 def _call_llm_json(system: str, payload: dict[str, Any], temperature: float) -> dict[str, Any]:
@@ -485,3 +651,13 @@ def _as_string_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
     return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _as_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "yes", "y", "是", "需要", "终止"}
+    return False

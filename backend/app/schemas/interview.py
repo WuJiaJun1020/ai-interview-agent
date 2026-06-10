@@ -48,6 +48,9 @@ class HrInterviewAnswerResult(BaseModel):
     answered_count: int
     total_questions: int
     is_finished: bool
+    termination_reason: str | None = None
+    pass_score: int
+    passed: bool | None = None
 
 
 class HrInterviewReportItem(BaseModel):
@@ -55,6 +58,7 @@ class HrInterviewReportItem(BaseModel):
     answer: str
     score: int
     source: str
+    focus: list[str] = Field(default_factory=list)
     feedback: str
     strengths: list[str]
     weaknesses: list[str]
@@ -68,5 +72,21 @@ class HrInterviewReport(BaseModel):
     total_questions: int
     average_score: float
     is_finished: bool
+    pass_score: int
+    passed: bool | None = None
+    termination_reason: str | None = None
     recommendation: str
     answers: list[HrInterviewReportItem]
+
+
+class HrInterviewSessionSummary(BaseModel):
+    session_id: int
+    context: HrInterviewContextRead
+    answered_count: int
+    total_questions: int
+    average_score: float
+    is_finished: bool
+    pass_score: int
+    passed: bool | None = None
+    termination_reason: str | None = None
+    created_at: str

@@ -18,6 +18,7 @@ class HrInterviewSession(Base):
     answered_count: Mapped[int] = mapped_column(Integer, default=0)
     total_score: Mapped[int] = mapped_column(Integer, default=0)
     is_finished: Mapped[bool] = mapped_column(Boolean, default=False)
+    termination_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[str] = mapped_column(String(50), default="mock")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -31,6 +32,7 @@ class HrInterviewAnswer(Base):
     answer: Mapped[str] = mapped_column(Text)
     score: Mapped[int] = mapped_column(Integer)
     source: Mapped[str] = mapped_column(String(50), default="mock")
+    focus: Mapped[list[str]] = mapped_column(JSON, default=list)
     feedback: Mapped[str] = mapped_column(Text)
     strengths: Mapped[list[str]] = mapped_column(JSON, default=list)
     weaknesses: Mapped[list[str]] = mapped_column(JSON, default=list)

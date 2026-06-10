@@ -17,6 +17,7 @@ from app.core.config import settings  # noqa: E402
 from app.services import llm_scoring  # noqa: E402
 from app.services import resume_analysis  # noqa: E402
 from app.services import job_vector_store  # noqa: E402
+from app.services import hr_interview  # noqa: E402
 from app.api import resumes as resumes_api  # noqa: E402
 
 
@@ -65,7 +66,8 @@ def test_health_config_and_frontend(client: TestClient) -> None:
     assert "AI Interview Agent" in frontend_response.text
     assert 'id="filterSummary"' in frontend_response.text
     assert 'id="practiceSummary"' in frontend_response.text
-    assert 'id="interviewSummary"' in frontend_response.text
+    assert 'id="interviewProgress"' in frontend_response.text
+    assert 'id="toggleInterviewRecordsBtn"' in frontend_response.text
     assert 'id="interviewResult"' in frontend_response.text
     assert 'id="resumeForm"' in frontend_response.text
     assert 'id="resumeResult"' in frontend_response.text
@@ -281,6 +283,269 @@ def test_hr_interview_flow_uses_resume_and_job_context(client: TestClient, monke
     assert report["total_questions"] == 2
     assert report["answers"][0]["question"]
     assert report["recommendation"]
+
+
+def test_hr_interview_strategy_follow_up_for_vague_answer(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_jsonl = (
+        '{"source":"test","company":"Strategy Corp","job_id":"hr-strategy-1","title":"Python Backend Engineer",'
+        '"city":"Shanghai","job_type":"campus","category":"backend",'
+        '"description":"Build FastAPI services, Redis cache and MySQL data models.",'
+        '"requirements":["Python","FastAPI","Redis","MySQL"],'
+        '"raw_text":"Python FastAPI Redis MySQL backend",'
+        '"url":"https://example.com/jobs/hr-strategy","collected_at":"2026-06-09T12:00:00"}\n'
+    )
+    job_import_response = client.post(
+        "/api/jobs/import-jsonl",
+        files={"file": ("hr_strategy_jobs.jsonl", job_jsonl.encode("utf-8"), "text/plain")},
+    )
+    assert job_import_response.status_code == 200
+    job_id = job_import_response.json()["jobs"][0]["id"]
+
+    def fake_extract_resume_text(_, filename: str, __: str) -> str:
+        if not filename.lower().endswith((".pdf", ".docx")):
+            raise ValueError("Only PDF and DOCX resumes are supported")
+        return "Candidate has Python FastAPI Redis backend project experience."
+
+    monkeypatch.setattr(resumes_api, "extract_resume_text", fake_extract_resume_text)
+    upload_response = client.post(
+        "/api/resumes/upload",
+        files={"file": ("strategy-candidate.pdf", b"%PDF mock", "application/pdf")},
+    )
+    assert upload_response.status_code == 201
+    resume_id = upload_response.json()["resume_id"]
+
+    start_response = client.post(
+        "/api/interview/hr-sessions",
+        json={"resume_id": resume_id, "job_id": job_id, "total_questions": 3},
+    )
+    assert start_response.status_code == 201
+    session = start_response.json()
+
+    vague_answer_response = client.post(
+        f"/api/interview/hr-sessions/{session['session_id']}/answer",
+        json={"answer": "I did backend work."},
+    )
+    assert vague_answer_response.status_code == 200
+    result = vague_answer_response.json()
+    assert result["next_question"] is not None
+    assert "策略阶段" in result["feedback"]
+    assert any("风险" in item or "项目" in item or "量化" in item for item in result["weaknesses"] + result["suggestions"])
+    follow_up_text = result["next_question"]["question"]
+    follow_up_focus = result["next_question"]["focus"]
+    assert any(keyword in follow_up_text for keyword in ["追问", "具体项目", "个人动作", "量化结果", "结果"])
+    assert {"追问补证", "项目细节", "量化结果"}.intersection(follow_up_focus)
+
+
+def test_hr_interview_can_end_early_for_negative_attitude(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_jsonl = (
+        '{"source":"test","company":"Terminate Corp","job_id":"hr-terminate-1","title":"Data Engineer Intern",'
+        '"city":"Shanghai","job_type":"internship","category":"data",'
+        '"description":"Build data pipelines and answer technical interview questions.",'
+        '"requirements":["Python","SQL","Spark"],'
+        '"raw_text":"Python SQL Spark data pipeline internship",'
+        '"url":"https://example.com/jobs/hr-terminate","collected_at":"2026-06-09T12:00:00"}\n'
+    )
+    job_import_response = client.post(
+        "/api/jobs/import-jsonl",
+        files={"file": ("hr_terminate_jobs.jsonl", job_jsonl.encode("utf-8"), "text/plain")},
+    )
+    assert job_import_response.status_code == 200
+    job_id = job_import_response.json()["jobs"][0]["id"]
+
+    def fake_extract_resume_text(_, filename: str, __: str) -> str:
+        if not filename.lower().endswith((".pdf", ".docx")):
+            raise ValueError("Only PDF and DOCX resumes are supported")
+        return "Candidate has Python and SQL data pipeline project experience."
+
+    monkeypatch.setattr(resumes_api, "extract_resume_text", fake_extract_resume_text)
+    upload_response = client.post(
+        "/api/resumes/upload",
+        files={"file": ("terminate-candidate.pdf", b"%PDF mock", "application/pdf")},
+    )
+    assert upload_response.status_code == 201
+    resume_id = upload_response.json()["resume_id"]
+
+    start_response = client.post(
+        "/api/interview/hr-sessions",
+        json={"resume_id": resume_id, "job_id": job_id, "total_questions": 3},
+    )
+    assert start_response.status_code == 201
+    session_id = start_response.json()["session_id"]
+
+    answer_response = client.post(
+        f"/api/interview/hr-sessions/{session_id}/answer",
+        json={"answer": "重新问这个问题，我不想回答。"},
+    )
+    assert answer_response.status_code == 200
+    result = answer_response.json()
+    assert result["is_finished"] is True
+    assert result["next_question"] is None
+    assert result["termination_reason"]
+    assert result["pass_score"] == 70
+    assert result["passed"] is False
+
+    report_response = client.get(f"/api/interview/hr-sessions/{session_id}/report")
+    assert report_response.status_code == 200
+    report = report_response.json()
+    assert report["termination_reason"] == result["termination_reason"]
+    assert report["passed"] is False
+    assert report["answers"][0]["focus"]
+
+    sessions_response = client.get("/api/interview/hr-sessions")
+    assert sessions_response.status_code == 200
+    sessions = sessions_response.json()
+    saved_session = next(item for item in sessions if item["session_id"] == session_id)
+    assert saved_session["termination_reason"] == result["termination_reason"]
+    assert saved_session["passed"] is False
+
+
+def test_hr_interview_llm_attitude_assessment_can_end_early(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "scoring_mode", "llm")
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+
+    job_jsonl = (
+        '{"source":"test","company":"LLM Judge Corp","job_id":"hr-llm-attitude-1","title":"Backend Intern",'
+        '"city":"Shanghai","job_type":"internship","category":"backend",'
+        '"description":"Answer structured backend interview questions.",'
+        '"requirements":["Python","API"],'
+        '"raw_text":"Python API backend internship",'
+        '"url":"https://example.com/jobs/hr-llm-attitude","collected_at":"2026-06-09T12:00:00"}\n'
+    )
+    job_import_response = client.post(
+        "/api/jobs/import-jsonl",
+        files={"file": ("hr_llm_attitude_jobs.jsonl", job_jsonl.encode("utf-8"), "text/plain")},
+    )
+    assert job_import_response.status_code == 200
+    job_id = job_import_response.json()["jobs"][0]["id"]
+
+    def fake_extract_resume_text(_, filename: str, __: str) -> str:
+        if not filename.lower().endswith((".pdf", ".docx")):
+            raise ValueError("Only PDF and DOCX resumes are supported")
+        return "Candidate has Python API project experience."
+
+    def fake_call_llm_json(system: str, payload: dict, temperature: float) -> dict:
+        if "面试流程观察员" in system:
+            return {
+                "should_terminate": True,
+                "label": "refusal",
+                "reason": "候选人明确表示不愿继续回答当前问题，面试已提前终止。",
+            }
+        if "面试反馈" in system:
+            return {
+                "score": 20,
+                "feedback": "候选人没有配合展开岗位相关经历。",
+                "strengths": ["仍然给出了基本回应。"],
+                "weaknesses": ["未回答当前问题。"],
+                "suggestions": ["后续需要正面回应面试官问题。"],
+            }
+        return {"question": "请结合一个后端项目说明你的个人贡献。", "focus": ["项目证据"]}
+
+    monkeypatch.setattr(resumes_api, "extract_resume_text", fake_extract_resume_text)
+    monkeypatch.setattr(hr_interview, "_call_llm_json", fake_call_llm_json)
+    upload_response = client.post(
+        "/api/resumes/upload",
+        files={"file": ("llm-attitude-candidate.pdf", b"%PDF mock", "application/pdf")},
+    )
+    assert upload_response.status_code == 201
+    resume_id = upload_response.json()["resume_id"]
+
+    start_response = client.post(
+        "/api/interview/hr-sessions",
+        json={"resume_id": resume_id, "job_id": job_id, "total_questions": 3},
+    )
+    assert start_response.status_code == 201
+    session_id = start_response.json()["session_id"]
+
+    answer_response = client.post(
+        f"/api/interview/hr-sessions/{session_id}/answer",
+        json={"answer": "这个话题我选择不展开，我们直接进入其他安排。"},
+    )
+    assert answer_response.status_code == 200
+    result = answer_response.json()
+    assert result["is_finished"] is True
+    assert result["next_question"] is None
+    assert result["termination_reason"] == "候选人明确表示不愿继续回答当前问题，面试已提前终止。"
+    assert result["passed"] is False
+
+    report_response = client.get(f"/api/interview/hr-sessions/{session_id}/report")
+    assert report_response.status_code == 200
+    assert report_response.json()["termination_reason"] == result["termination_reason"]
+
+
+def test_hr_interview_llm_attitude_string_false_does_not_end_early(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "scoring_mode", "llm")
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+
+    job_jsonl = (
+        '{"source":"test","company":"LLM Continue Corp","job_id":"hr-llm-continue-1","title":"Backend Intern",'
+        '"city":"Shanghai","job_type":"internship","category":"backend",'
+        '"description":"Answer structured backend interview questions.",'
+        '"requirements":["Python","API"],'
+        '"raw_text":"Python API backend internship",'
+        '"url":"https://example.com/jobs/hr-llm-continue","collected_at":"2026-06-09T12:00:00"}\n'
+    )
+    job_import_response = client.post(
+        "/api/jobs/import-jsonl",
+        files={"file": ("hr_llm_continue_jobs.jsonl", job_jsonl.encode("utf-8"), "text/plain")},
+    )
+    assert job_import_response.status_code == 200
+    job_id = job_import_response.json()["jobs"][0]["id"]
+
+    def fake_extract_resume_text(_, filename: str, __: str) -> str:
+        if not filename.lower().endswith((".pdf", ".docx")):
+            raise ValueError("Only PDF and DOCX resumes are supported")
+        return "Candidate has Python API project experience."
+
+    def fake_call_llm_json(system: str, payload: dict, temperature: float) -> dict:
+        if "面试流程观察员" in system:
+            return {"should_terminate": "false", "label": "vague", "reason": ""}
+        if "面试反馈" in system:
+            return {
+                "score": 56,
+                "feedback": "回答偏短，但仍在配合当前问题。",
+                "strengths": ["候选人尝试回应问题。"],
+                "weaknesses": ["缺少项目细节。"],
+                "suggestions": ["下一轮补充具体项目。"],
+            }
+        return {"question": "请补充一个具体后端项目。", "focus": ["项目证据"]}
+
+    monkeypatch.setattr(resumes_api, "extract_resume_text", fake_extract_resume_text)
+    monkeypatch.setattr(hr_interview, "_call_llm_json", fake_call_llm_json)
+    upload_response = client.post(
+        "/api/resumes/upload",
+        files={"file": ("llm-continue-candidate.pdf", b"%PDF mock", "application/pdf")},
+    )
+    assert upload_response.status_code == 201
+    resume_id = upload_response.json()["resume_id"]
+
+    start_response = client.post(
+        "/api/interview/hr-sessions",
+        json={"resume_id": resume_id, "job_id": job_id, "total_questions": 2},
+    )
+    assert start_response.status_code == 201
+    session_id = start_response.json()["session_id"]
+
+    answer_response = client.post(
+        f"/api/interview/hr-sessions/{session_id}/answer",
+        json={"answer": "我做过一些 API 开发，但细节暂时说得不完整。"},
+    )
+    assert answer_response.status_code == 200
+    result = answer_response.json()
+    assert result["is_finished"] is False
+    assert result["next_question"] is not None
+    assert result["termination_reason"] is None
 
 
 def test_hr_interview_stream_flow(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

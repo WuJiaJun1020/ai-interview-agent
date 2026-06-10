@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"
     llm_enable_thinking: bool = False
     llm_timeout_seconds: float = 120
+    interview_pass_score: int = 70
 
     model_config = SettingsConfigDict(
         env_file=(BACKEND_DIR.parent / ".env", BACKEND_DIR / ".env"),

@@ -1,4 +1,4 @@
-import { queryString } from "./utils.js?v=20260609-chat-1";
+import { queryString } from "./utils.js?v=20260610-practice-3";
 
 export async function request(path, options = {}) {
   const { timeoutMs = 8000, ...fetchOptions } = options;
@@ -45,17 +45,6 @@ export function getPracticeQuestion(filters = {}) {
   return request(`/api/practice/question${qs ? `?${qs}` : ""}`);
 }
 
-export function saveQuestionRequest(questionId, payload) {
-  return request(questionId ? `/api/questions/${questionId}` : "/api/questions", {
-    method: questionId ? "PUT" : "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export function deleteQuestionRequest(questionId) {
-  return request(`/api/questions/${questionId}`, { method: "DELETE" });
-}
-
 export function startHrInterviewStream(payload) {
   return fetchSse("/api/interview/hr-sessions/stream", {
     body: JSON.stringify(payload),
@@ -72,6 +61,10 @@ export function submitHrInterviewAnswerStream(sessionId, answer) {
 
 export function getHrInterviewReport(sessionId) {
   return request(`/api/interview/hr-sessions/${sessionId}/report`);
+}
+
+export function listHrInterviewSessions() {
+  return request("/api/interview/hr-sessions");
 }
 
 async function fetchSse(path, options = {}) {

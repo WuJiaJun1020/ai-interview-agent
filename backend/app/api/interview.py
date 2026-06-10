@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.interview import HrInterviewAnswer, HrInterviewSession
 from app.models.job import JobPost
 from app.models.resume import Resume
+from app.core.config import settings
 from app.schemas.interview import (
     HrInterviewAnswerCreate,
     HrInterviewAnswerResult,
@@ -17,14 +18,17 @@ from app.schemas.interview import (
     HrInterviewQuestionRead,
     HrInterviewReport,
     HrInterviewReportItem,
+    HrInterviewSessionSummary,
     HrInterviewStartCreate,
     HrInterviewStartResult,
 )
 from app.services.hr_interview import (
     HrAnswerReview,
     HrQuestion,
+    assess_hr_answer_attitude,
     build_hr_recommendation,
     generate_hr_question,
+    heuristic_hr_attitude_reason,
     review_hr_answer,
     stream_hr_answer_review,
     stream_hr_question,
@@ -167,6 +171,7 @@ def submit_hr_interview_answer(
             answer=payload.answer,
             score=review.score,
             source=review.source,
+            focus=session.current_focus,
             feedback=review.feedback,
             strengths=review.strengths,
             weaknesses=review.weaknesses,
@@ -178,10 +183,19 @@ def submit_hr_interview_answer(
     session.total_score += review.score
 
     next_question = None
-    if session.answered_count >= session.total_questions:
+    attitude = assess_hr_answer_attitude(
+        resume=resume,
+        job=job,
+        question=current_question,
+        answer=payload.answer,
+        previous_turns=previous_turns,
+    )
+    termination_reason = attitude.reason if attitude.should_terminate else None
+    if termination_reason or session.answered_count >= session.total_questions:
         session.is_finished = True
         session.current_question = None
         session.current_focus = []
+        session.termination_reason = termination_reason
     else:
         next_question = generate_hr_question(
             resume=resume,
@@ -198,6 +212,7 @@ def submit_hr_interview_answer(
         session.source = next_question.source
 
     db.commit()
+    average_score = _average_score(session.total_score, session.answered_count)
 
     return HrInterviewAnswerResult(
         session_id=session.id,
@@ -213,6 +228,9 @@ def submit_hr_interview_answer(
         answered_count=session.answered_count,
         total_questions=session.total_questions,
         is_finished=session.is_finished,
+        termination_reason=termination_reason,
+        pass_score=settings.interview_pass_score,
+        passed=(_passed(average_score) and not termination_reason) if session.is_finished else None,
     )
 
 
@@ -275,6 +293,7 @@ def submit_hr_interview_answer_stream(
                         answer=payload.answer,
                         score=review.score,
                         source=review.source,
+                        focus=stream_session.current_focus,
                         feedback=review.feedback,
                         strengths=review.strengths,
                         weaknesses=review.weaknesses,
@@ -285,10 +304,20 @@ def submit_hr_interview_answer_stream(
                 stream_session.total_score += review.score
 
                 next_question = None
-                if stream_session.answered_count >= stream_session.total_questions:
+                yield _sse_event("progress", {"message": "面试官正在判断本轮回答状态。"})
+                attitude = assess_hr_answer_attitude(
+                    resume=stream_resume,
+                    job=stream_job,
+                    question=current_question,
+                    answer=payload.answer,
+                    previous_turns=previous_turns,
+                )
+                termination_reason = attitude.reason if attitude.should_terminate else None
+                if termination_reason or stream_session.answered_count >= stream_session.total_questions:
                     stream_session.is_finished = True
                     stream_session.current_question = None
                     stream_session.current_focus = []
+                    stream_session.termination_reason = termination_reason
                 else:
                     yield _sse_event("progress", {"message": "面试官正在准备下一道追问。"})
                     for item in stream_hr_question(
@@ -334,6 +363,14 @@ def submit_hr_interview_answer_stream(
                         "answered_count": stream_session.answered_count,
                         "total_questions": stream_session.total_questions,
                         "is_finished": stream_session.is_finished,
+                        "termination_reason": termination_reason,
+                        "pass_score": settings.interview_pass_score,
+                        "passed": (
+                            _passed(_average_score(stream_session.total_score, stream_session.answered_count))
+                            and not termination_reason
+                        )
+                        if stream_session.is_finished
+                        else None,
                     },
                 )
             except Exception as exc:
@@ -350,6 +387,51 @@ def get_hr_interview_report(session_id: int, db: Session = Depends(get_db)) -> H
         raise HTTPException(status_code=404, detail="HR interview session not found")
     resume = _get_resume_or_404(db, session.resume_id)
     job = _get_job_or_404(db, session.job_id)
+    return _build_hr_interview_report(db, session, resume, job)
+
+
+@router.get("/hr-sessions", response_model=list[HrInterviewSessionSummary])
+def list_hr_interview_sessions(db: Session = Depends(get_db)) -> list[HrInterviewSessionSummary]:
+    sessions = list(
+        db.scalars(
+            select(HrInterviewSession)
+            .order_by(HrInterviewSession.created_at.desc(), HrInterviewSession.id.desc())
+            .limit(20)
+        ).all()
+    )
+    summaries: list[HrInterviewSessionSummary] = []
+    for session in sessions:
+        resume = db.get(Resume, session.resume_id)
+        job = db.get(JobPost, session.job_id)
+        if resume is None or job is None:
+            continue
+        average_score = _average_score(session.total_score, session.answered_count)
+        termination_reason = _session_termination_reason(db, session)
+        summaries.append(
+            HrInterviewSessionSummary(
+                session_id=session.id,
+                context=_hr_context(resume, job),
+                answered_count=session.answered_count,
+                total_questions=session.total_questions,
+                average_score=average_score,
+                is_finished=session.is_finished,
+                pass_score=settings.interview_pass_score,
+                passed=(_passed(average_score) and not termination_reason)
+                if session.is_finished and session.answered_count
+                else None,
+                termination_reason=termination_reason,
+                created_at=session.created_at.isoformat() if session.created_at else "",
+            )
+        )
+    return summaries
+
+
+def _build_hr_interview_report(
+    db: Session,
+    session: HrInterviewSession,
+    resume: Resume,
+    job: JobPost,
+) -> HrInterviewReport:
     answers = list(
         db.scalars(
             select(HrInterviewAnswer)
@@ -357,7 +439,8 @@ def get_hr_interview_report(session_id: int, db: Session = Depends(get_db)) -> H
             .order_by(HrInterviewAnswer.id)
         ).all()
     )
-    average_score = round(session.total_score / session.answered_count, 1) if session.answered_count else 0.0
+    average_score = _average_score(session.total_score, session.answered_count)
+    termination_reason = session.termination_reason or _termination_reason_from_answers(answers)
     return HrInterviewReport(
         session_id=session.id,
         context=_hr_context(resume, job),
@@ -365,6 +448,9 @@ def get_hr_interview_report(session_id: int, db: Session = Depends(get_db)) -> H
         total_questions=session.total_questions,
         average_score=average_score,
         is_finished=session.is_finished,
+        pass_score=settings.interview_pass_score,
+        passed=(_passed(average_score) and not termination_reason) if session.is_finished and session.answered_count else None,
+        termination_reason=termination_reason,
         recommendation=build_hr_recommendation(average_score),
         answers=[
             HrInterviewReportItem(
@@ -372,6 +458,7 @@ def get_hr_interview_report(session_id: int, db: Session = Depends(get_db)) -> H
                 answer=item.answer,
                 score=item.score,
                 source=item.source,
+                focus=item.focus or [],
                 feedback=item.feedback,
                 strengths=item.strengths,
                 weaknesses=item.weaknesses,
@@ -420,6 +507,38 @@ def _hr_previous_turns(db: Session, session_id: int) -> list[dict[str, object]]:
         }
         for answer in answers
     ]
+
+
+def _average_score(total_score: int, answered_count: int) -> float:
+    return round(total_score / answered_count, 1) if answered_count else 0.0
+
+
+def _passed(average_score: float) -> bool:
+    return average_score >= settings.interview_pass_score
+
+
+def _negative_attitude_reason(answer: str) -> str | None:
+    return heuristic_hr_attitude_reason(answer)
+
+
+def _termination_reason_from_answers(answers: list[HrInterviewAnswer]) -> str | None:
+    if not answers:
+        return None
+    return _negative_attitude_reason(answers[-1].answer)
+
+
+def _session_termination_reason(db: Session, session: HrInterviewSession) -> str | None:
+    if session.termination_reason:
+        return session.termination_reason
+    last_answer = db.scalars(
+        select(HrInterviewAnswer)
+        .where(HrInterviewAnswer.session_id == session.id)
+        .order_by(HrInterviewAnswer.id.desc())
+        .limit(1)
+    ).first()
+    if last_answer is None:
+        return None
+    return _negative_attitude_reason(last_answer.answer)
 
 
 def _sse_event(event: str, payload: dict) -> str:

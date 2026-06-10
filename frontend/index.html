@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Interview Agent</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260609-chat-1" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260610-practice-3" />
   </head>
   <body>
     <div class="app-shell">
@@ -17,7 +17,7 @@
         <nav class="tabs" aria-label="功能切换">
           <button class="tab active" data-tab="practice" type="button">
             <span>题库练习</span>
-            <small>抽题 / 评分 / 管理</small>
+            <small>抽题 / 作答 / 评分</small>
           </button>
           <button class="tab" data-tab="interview" type="button">
             <span>模拟面试</span>
@@ -46,9 +46,10 @@
             <div>
               <span class="eyebrow">Question Bank</span>
               <h2>题库练习</h2>
-              <p>按分类和难度筛选题库，抽题作答，查看评分反馈，并维护题目内容。</p>
+              <p>按分类和难度筛选题库，抽题作答，查看评分反馈。</p>
             </div>
             <div class="view-header-actions">
+              <button id="toggleQuestionListBtn" class="secondary-btn" type="button">题库列表</button>
               <button id="refreshBtn" class="secondary-btn" type="button">刷新题库</button>
               <button id="seedBtn" type="button">初始化题库</button>
             </div>
@@ -89,116 +90,53 @@
           </section>
 
           <div class="practice-board">
-            <div class="practice-session-stack">
-              <section class="panel practice-session-panel">
-                <div class="panel-header">
-                  <h2>当前练习题</h2>
-                  <div class="inline-actions">
-                    <span id="practiceMeta" class="meta">未开始</span>
-                    <button id="loadPracticeBtn" type="button">抽一道题</button>
-                  </div>
+            <section class="panel practice-session-panel">
+              <div class="panel-header">
+                <h2>当前练习题</h2>
+                <div class="inline-actions">
+                  <span id="practiceMeta" class="meta">未开始</span>
+                  <button id="loadPracticeBtn" type="button">抽一道题</button>
                 </div>
+              </div>
+              <div id="practiceAnswerStage" class="practice-answer-stage">
                 <div id="practiceQuestion" class="question-box empty">点击“抽一道题”开始练习。</div>
                 <div id="choiceAnswerBox" class="choice-answer-box" hidden></div>
-                <textarea id="practiceAnswer" placeholder="在这里输入你的回答"></textarea>
-                <div class="answer-meta">
-                  <span id="practiceAnswerMeta">0 字</span>
-                  <span>建议先给结论，再补关键点和例子。</span>
-                </div>
-                <button id="submitPracticeBtn" type="button">提交练习答案</button>
-              </section>
+              </div>
+              <textarea id="practiceAnswer" placeholder="在这里输入你的回答"></textarea>
+              <div class="answer-meta">
+                <span id="practiceAnswerMeta">0 字</span>
+                <span>建议先给结论，再补关键点和例子。</span>
+              </div>
+              <button id="submitPracticeBtn" type="button">提交练习答案</button>
+            </section>
 
-              <section class="panel result-panel practice-feedback-panel">
-                <h2>练习反馈</h2>
-                <div id="practiceResult" class="result-box empty">提交答案后显示评分、反馈和参考答案。</div>
-              </section>
-            </div>
+            <section class="panel result-panel practice-feedback-panel">
+              <h2>练习反馈</h2>
+              <div id="practiceResult" class="result-box empty">提交答案后显示评分、反馈和参考答案。</div>
+            </section>
+          </div>
 
+          <aside id="questionDrawer" class="question-drawer" hidden>
             <section class="panel question-list-panel">
               <div class="panel-header">
-                <h2>题库列表</h2>
-                <span id="questionListMeta" class="meta">加载中</span>
+                <div>
+                  <h2>题库列表</h2>
+                  <span id="questionListMeta" class="meta">加载中</span>
+                </div>
+                <button id="closeQuestionListBtn" class="ghost-btn small-btn" type="button">收起</button>
               </div>
               <div id="questionList" class="question-list empty">正在加载题库...</div>
             </section>
-
-            <section class="panel question-editor-panel">
-              <div class="panel-header">
-                <h2 id="questionFormTitle">新增题目</h2>
-                <span id="questionFormMeta" class="meta">保存后可直接练习</span>
-              </div>
-              <form id="questionForm" class="question-form">
-                <div class="form-grid">
-                  <div class="field">
-                    <label for="newCategory">分类</label>
-                    <input id="newCategory" name="category" list="categoryOptions" placeholder="例如 Python" required />
-                    <datalist id="categoryOptions"></datalist>
-                  </div>
-                  <div class="field">
-                    <label for="newDifficulty">难度</label>
-                    <input id="newDifficulty" name="difficulty" list="difficultyOptions" placeholder="例如 初级" required />
-                    <datalist id="difficultyOptions">
-                      <option value="初级"></option>
-                      <option value="中级"></option>
-                      <option value="高级"></option>
-                    </datalist>
-                  </div>
-                  <div class="field">
-                    <label for="newQuestionType">题型</label>
-                    <select id="newQuestionType" name="questionType">
-                      <option value="short_answer">问答题</option>
-                      <option value="single_choice">单选题</option>
-                      <option value="multiple_choice">多选题</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="field">
-                  <label for="newQuestion">题目</label>
-                  <textarea id="newQuestion" name="question" class="compact-textarea" placeholder="输入面试题" required></textarea>
-                </div>
-                <div id="choiceQuestionFields" class="choice-fields" hidden>
-                  <div class="field">
-                    <label for="newOptions">选项</label>
-                    <textarea id="newOptions" name="options" class="compact-textarea" placeholder="一行一个选项，例如：A. list 是可变序列"></textarea>
-                  </div>
-                  <div class="field">
-                    <label for="newCorrectAnswer">正确答案</label>
-                    <input id="newCorrectAnswer" name="correctAnswer" placeholder="单选例如 A，多选例如 A,C" />
-                  </div>
-                </div>
-                <div class="field">
-                  <label for="newStandardAnswer">参考答案</label>
-                  <textarea id="newStandardAnswer" name="standardAnswer" class="compact-textarea" placeholder="输入参考答案" required></textarea>
-                </div>
-                <div class="field">
-                  <label for="newRubric">评分点</label>
-                  <textarea id="newRubric" name="rubric" class="compact-textarea" placeholder="一行一个评分点"></textarea>
-                </div>
-                <div class="form-actions">
-                  <button id="createQuestionBtn" type="submit">保存题目</button>
-                  <button id="cancelEditBtn" class="ghost-btn" type="button" hidden>取消编辑</button>
-                </div>
-              </form>
-            </section>
-          </div>
+          </aside>
         </section>
 
         <section id="interviewView" class="view interview-view">
           <header class="interview-topbar">
-            <div>
+            <div class="interview-topbar-main">
               <h2>模拟面试 · 岗位 HR 面试</h2>
-              <p id="interviewConfigSummary">模式：岗位 HR 面试 · 简历：未选择 · 岗位：未选择 · 题数：3</p>
-            </div>
-            <div class="interview-topbar-actions">
-              <span id="interviewProgress" class="interview-time">未开始</span>
-              <button id="startInterviewBtn" type="button">新面试</button>
-            </div>
-          </header>
-
-          <div class="interview-chat-layout">
-            <section class="chat-stage" aria-label="模拟面试对话">
-              <div class="chat-config-strip">
-                <div class="field">
+              <p id="interviewConfigSummary">请选择简历、岗位和题数，开始后可展开右侧查看面试记录。</p>
+              <div class="topbar-config-strip">
+                <div class="field compact-field">
                   <label for="interviewQuestionCount">题数</label>
                   <select id="interviewQuestionCount">
                     <option value="1">1 题</option>
@@ -207,14 +145,14 @@
                     <option value="5">5 题</option>
                   </select>
                 </div>
-                <div id="hrInterviewFields" class="field-row">
-                  <div class="field">
+                <div id="hrInterviewFields" class="topbar-field-row">
+                  <div class="field compact-field">
                     <label for="hrResumeSelect">简历</label>
                     <select id="hrResumeSelect">
                       <option value="">请先上传并分析简历</option>
                     </select>
                   </div>
-                  <div class="field">
+                  <div class="field compact-field">
                     <label for="hrJobSelect">岗位</label>
                     <select id="hrJobSelect">
                       <option value="">请先导入岗位</option>
@@ -222,7 +160,21 @@
                   </div>
                 </div>
               </div>
+            </div>
+            <div class="interview-topbar-actions">
+              <div class="topbar-progress">
+                <span id="interviewProgress" class="interview-time">未开始</span>
+                <div class="progress-track compact-progress" aria-label="面试进度">
+                  <div id="interviewProgressBar" class="progress-bar"></div>
+                </div>
+              </div>
+              <button id="toggleInterviewRecordsBtn" class="ghost-btn" type="button" aria-pressed="false">展开记录</button>
+              <button id="startInterviewBtn" type="button">新面试</button>
+            </div>
+          </header>
 
+          <div class="interview-chat-layout">
+            <section class="chat-stage" aria-label="模拟面试对话">
               <div id="interviewQuestion" class="chat-transcript empty">
                 <div class="chat-message ai-message">
                   <div class="chat-avatar bot-avatar">AI</div>
@@ -239,11 +191,6 @@
               <div class="chat-input-box">
                 <textarea id="interviewAnswer" placeholder="输入你的回答..."></textarea>
                 <div class="chat-input-footer">
-                  <div class="chat-helper-actions">
-                    <span id="interviewAnswerMeta">0 字</span>
-                    <button class="ghost-btn small-btn" type="button" data-static-disabled="true" disabled>结构化回答建议</button>
-                    <button class="ghost-btn small-btn" type="button" data-static-disabled="true" disabled>回顾上一题</button>
-                  </div>
                   <button id="submitInterviewBtn" class="send-answer-btn" type="button" aria-label="发送回答">发送</button>
                 </div>
               </div>
@@ -251,35 +198,11 @@
             </section>
 
             <aside class="interview-side-panel" aria-label="面试侧栏">
-              <section class="side-card">
-                <h3>面试进度</h3>
-                <strong id="interviewSummary">未开始</strong>
-                <p id="interviewSummaryDetail">模式：岗位 HR 面试 · 简历：未选择 · 岗位：未选择 · 题数：3</p>
-                <div class="progress-track" aria-label="面试进度">
-                  <div id="interviewProgressBar" class="progress-bar"></div>
-                </div>
-              </section>
-
-              <section class="side-card">
-                <h3>面试信息</h3>
-                <dl class="interview-info-list">
-                  <div>
-                    <dt>面试岗位</dt>
-                    <dd id="interviewJobInfo">未选择</dd>
-                  </div>
-                  <div>
-                    <dt>候选简历</dt>
-                    <dd id="interviewResumeInfo">未选择</dd>
-                  </div>
-                  <div>
-                    <dt>题目总数</dt>
-                    <dd id="interviewQuestionTotalInfo">3 题</dd>
-                  </div>
-                </dl>
-              </section>
-
               <section class="side-card interview-record-card">
-                <h3>面试记录</h3>
+                <div class="record-card-header">
+                  <h3>面试记录</h3>
+                  <button id="collapseInterviewRecordsBtn" class="ghost-btn small-btn" type="button">收起</button>
+                </div>
                 <div id="interviewResult" class="interview-record empty">暂无面试记录，面试过程中会自动保存。</div>
               </section>
             </aside>
@@ -375,6 +298,6 @@
       </main>
     </div>
 
-    <script type="module" src="/static/app.js?v=20260609-chat-1"></script>
+    <script type="module" src="/static/app.js?v=20260610-practice-3"></script>
   </body>
 </html>

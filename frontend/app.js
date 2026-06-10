@@ -1,25 +1,25 @@
 import {
   analyzeUploadedResume,
-  deleteQuestionRequest,
   deleteResumeHistoryRequest,
   getConfigStatus,
   getHrInterviewReport,
   getPracticeQuestion,
   getResumeResult,
   importJobsJsonl,
+  listHrInterviewSessions,
   listResumeHistory,
   listJobs,
   listQuestions,
   rebuildJobVectorIndex,
-  saveQuestionRequest,
   seedQuestionBank,
   startHrInterviewStream,
   submitHrInterviewAnswerStream,
   uploadResumeDocument,
-} from "./api.js?v=20260609-chat-1";
+} from "./api.js?v=20260610-practice-3";
 import {
   renderFilterOptions,
   renderInterviewLogs,
+  renderInterviewSessions,
   renderJobCollectResult,
   renderJobList,
   renderJobPending,
@@ -41,10 +41,11 @@ import {
   updateFilterSummary,
   updateInterviewConfigSummary,
   updateInterviewProgress,
+  updateInterviewRecordsLayout,
   updatePracticeSummary,
-} from "./render.js?v=20260609-chat-1";
-import { state } from "./state.js?v=20260609-chat-1";
-import { $, escapeHtml, isChoiceType, parseError } from "./utils.js?v=20260609-chat-1";
+} from "./render.js?v=20260610-practice-3";
+import { state } from "./state.js?v=20260610-practice-3";
+import { $, escapeHtml, isChoiceType, parseError } from "./utils.js?v=20260610-practice-3";
 
 function selectedFilters() {
   return {
@@ -63,11 +64,6 @@ function selectedInterviewConfig() {
     jobLabel: jobOption?.textContent || "",
     total_questions: Number($("interviewQuestionCount").value),
   };
-}
-
-function syncCreateFormDefaults() {
-  if ($("category").value && !$("newCategory").value) $("newCategory").value = $("category").value;
-  if ($("difficulty").value && !$("newDifficulty").value) $("newDifficulty").value = $("difficulty").value;
 }
 
 function shortOptionLabel(...parts) {
@@ -194,98 +190,6 @@ function renderSelectedPracticeQuestion(statusText) {
   renderQuestionList(state.questionCache);
 }
 
-function fillQuestionForm(question) {
-  state.editingQuestionId = question.id;
-  $("newCategory").value = question.category;
-  $("newDifficulty").value = question.difficulty;
-  $("newQuestionType").value = question.question_type || "short_answer";
-  $("newQuestion").value = question.question;
-  $("newStandardAnswer").value = question.standard_answer;
-  $("newRubric").value = question.rubric.join("\n");
-  $("newOptions").value = (question.options || []).join("\n");
-  $("newCorrectAnswer").value = question.correct_answer || "";
-  toggleQuestionTypeFields();
-  $("questionFormTitle").textContent = `编辑题目 #${question.id}`;
-  $("questionFormMeta").textContent = "保存后会更新题库列表";
-  $("createQuestionBtn").textContent = "保存修改";
-  $("cancelEditBtn").hidden = false;
-  setStatus(`正在编辑题目 #${question.id}`);
-  renderQuestionList(state.questionCache);
-}
-
-function resetQuestionForm() {
-  state.editingQuestionId = null;
-  $("questionForm").reset();
-  $("questionFormTitle").textContent = "新增题目";
-  $("questionFormMeta").textContent = "保存后可直接练习";
-  $("createQuestionBtn").textContent = "保存题目";
-  $("cancelEditBtn").hidden = true;
-  toggleQuestionTypeFields();
-  syncCreateFormDefaults();
-  renderQuestionList(state.questionCache);
-}
-
-async function saveQuestion(event) {
-  event.preventDefault();
-  const payload = buildQuestionPayload();
-
-  if (!payload.category || !payload.difficulty || !payload.question || !payload.standard_answer) {
-    setStatus("请填写分类、难度、题目和参考答案");
-    return;
-  }
-  if (isChoiceType(payload.question_type) && (!payload.options.length || !payload.correct_answer)) {
-    setStatus("选择题需要填写选项和正确答案");
-    return;
-  }
-
-  const saved = await saveQuestionRequest(state.editingQuestionId, payload);
-  const wasEditing = state.editingQuestionId !== null;
-  resetQuestionForm();
-  $("category").value = saved.category;
-  $("difficulty").value = saved.difficulty;
-  await refreshQuestionCount();
-  useQuestionForPractice(saved);
-  setStatus(wasEditing ? `已更新题目 #${saved.id}` : `已新增题目 #${saved.id}`);
-}
-
-function buildQuestionPayload() {
-  return {
-    category: $("newCategory").value.trim(),
-    difficulty: $("newDifficulty").value.trim(),
-    question_type: $("newQuestionType").value,
-    question: $("newQuestion").value.trim(),
-    standard_answer: $("newStandardAnswer").value.trim(),
-    rubric: splitLines($("newRubric").value),
-    options: splitLines($("newOptions").value),
-    correct_answer: $("newCorrectAnswer").value.trim() || null,
-  };
-}
-
-function splitLines(value) {
-  return value
-    .split("\n")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-async function deleteQuestion(questionId) {
-  const question = state.questionCache.find((item) => item.id === questionId);
-  const confirmed = window.confirm(`确认删除题目 #${questionId}？\n${question ? question.question : ""}`);
-  if (!confirmed) return;
-
-  await deleteQuestionRequest(questionId);
-  if (state.practiceQuestion?.id === questionId) {
-    state.practiceQuestion = null;
-    $("practiceQuestion").classList.add("empty");
-    $("practiceQuestion").textContent = "当前练习题已删除，请重新选择题目。";
-    $("practiceMeta").textContent = "未开始";
-    updatePracticeSummary();
-  }
-  if (state.editingQuestionId === questionId) resetQuestionForm();
-  await refreshQuestionCount();
-  setStatus(`已删除题目 #${questionId}`);
-}
-
 async function submitPracticeAnswer() {
   if (!state.practiceQuestion) {
     setStatus("请先抽一道题");
@@ -301,7 +205,10 @@ async function submitPracticeAnswer() {
 
 function renderAnswerInputForQuestion(question) {
   const choiceBox = $("choiceAnswerBox");
-  if (isChoiceType(question.question_type)) {
+  const practicePanel = document.querySelector(".practice-session-panel");
+  const isChoice = isChoiceType(question.question_type);
+  practicePanel?.classList.toggle("choice-mode", isChoice);
+  if (isChoice) {
     $("practiceAnswer").hidden = true;
     choiceBox.hidden = false;
     const inputType = question.question_type === "multiple_choice" ? "checkbox" : "radio";
@@ -396,11 +303,6 @@ function handlePracticeSseEvent(event, payload) {
   }
 }
 
-function toggleQuestionTypeFields() {
-  const isChoice = isChoiceType($("newQuestionType").value);
-  $("choiceQuestionFields").hidden = !isChoice;
-}
-
 async function startInterview() {
   const payload = selectedInterviewConfig();
   await startHrInterview(payload);
@@ -445,11 +347,14 @@ async function startHrInterview(payload) {
       state.hrCurrentQuestion = eventPayload.current_question;
       state.interviewFinished = false;
       state.interviewLogs = [];
+      state.selectedInterviewReport = null;
+      state.interviewRecordsExpanded = false;
+      updateInterviewRecordsLayout();
       renderHrQuestion($("interviewQuestion"), eventPayload.current_question, eventPayload.context);
       $("interviewAnswer").value = "";
-      updateAnswerMeta("interviewAnswer", "interviewAnswerMeta");
       $("interviewResult").classList.remove("empty");
       renderInterviewLogs();
+      refreshInterviewSessions().catch(() => {});
       updateInterviewProgress(eventPayload.answered_count, eventPayload.total_questions);
       updateInterviewConfigSummary(selectedInterviewConfig());
       setStatus("岗位 HR 面试已开始");
@@ -485,7 +390,6 @@ async function submitHrInterviewAnswer(answer) {
   setStatus("面试官正在反馈...");
   const response = await submitHrInterviewAnswerStream(state.interviewSessionId, answer);
   $("interviewAnswer").value = "";
-  updateAnswerMeta("interviewAnswer", "interviewAnswerMeta");
 
   await readSseResponse(response, async (event, eventPayload) => {
     if (event === "progress") {
@@ -494,11 +398,7 @@ async function submitHrInterviewAnswer(answer) {
     }
     if (event === "delta" && eventPayload.target === "feedback") {
       feedbackText += eventPayload.text || "";
-      renderHrTurnStream($("interviewQuestion"), {
-        ...liveTurn,
-        feedbackText,
-        nextQuestionText,
-      });
+      setStatus("面试官正在记录本轮评价...");
       return;
     }
     if (event === "delta" && eventPayload.target === "next_question") {
@@ -516,11 +416,15 @@ async function submitHrInterviewAnswer(answer) {
         score: eventPayload.score,
         source: eventPayload.source,
         question: currentQuestion?.question || "",
+        focus: currentQuestion?.focus || [],
         answer,
         feedback: eventPayload.feedback,
         strengths: eventPayload.strengths,
         weaknesses: eventPayload.weaknesses,
         suggestions: eventPayload.suggestions,
+        passScore: eventPayload.pass_score,
+        passed: eventPayload.passed,
+        terminationReason: eventPayload.termination_reason,
         standardAnswer: "岗位 HR 面试没有固定参考答案，请优先参考反馈中的岗位匹配建议。",
       };
       state.interviewLogs.push(turn);
@@ -533,15 +437,45 @@ async function submitHrInterviewAnswer(answer) {
         renderHrTurnSummary($("interviewQuestion"), turn);
         const report = await getHrInterviewReport(state.interviewSessionId);
         renderInterviewLogs(report);
-        setStatus("岗位 HR 面试已完成，左侧保留本轮反馈");
+        await refreshInterviewSessions();
+        setStatus(eventPayload.termination_reason ? "面试已提前终止，记录已保存" : "岗位 HR 面试已完成，记录已保存");
         return;
       }
 
       state.hrCurrentQuestion = eventPayload.next_question;
       renderHrQuestion($("interviewQuestion"), eventPayload.next_question, state.hrInterviewContext);
+      refreshInterviewSessions().catch(() => {});
       setStatus("岗位 HR 面试已进入下一题");
     }
   });
+}
+
+async function refreshInterviewSessions() {
+  state.hrInterviewSessions = await listHrInterviewSessions();
+  renderInterviewSessions(state.hrInterviewSessions);
+}
+
+async function showInterviewReport(sessionId) {
+  const report = await getHrInterviewReport(sessionId);
+  state.selectedInterviewReport = report;
+  state.interviewRecordsExpanded = true;
+  updateInterviewRecordsLayout();
+  renderInterviewLogs(report);
+  setStatus(`已加载面试 #${sessionId} 的完整记录`);
+}
+
+function setInterviewRecordsExpanded(isExpanded) {
+  state.interviewRecordsExpanded = isExpanded;
+  updateInterviewRecordsLayout();
+}
+
+function setQuestionDrawerOpen(isOpen) {
+  const drawer = $("questionDrawer");
+  const toggleButton = $("toggleQuestionListBtn");
+  if (!drawer || !toggleButton) return;
+  drawer.hidden = !isOpen;
+  toggleButton.textContent = isOpen ? "收起题库" : "题库列表";
+  toggleButton.setAttribute("aria-expanded", String(isOpen));
 }
 
 async function submitResumeAnalyze(event) {
@@ -731,15 +665,29 @@ function bindActions() {
   $("hrJobSelect").addEventListener("change", () => updateInterviewConfigSummary(selectedInterviewConfig()));
   $("interviewQuestionCount").addEventListener("change", () => updateInterviewConfigSummary(selectedInterviewConfig()));
   $("practiceAnswer").addEventListener("input", () => updateAnswerMeta("practiceAnswer", "practiceAnswerMeta"));
-  $("interviewAnswer").addEventListener("input", () => updateAnswerMeta("interviewAnswer", "interviewAnswerMeta"));
-  $("category").addEventListener("change", syncCreateFormDefaults);
-  $("difficulty").addEventListener("change", syncCreateFormDefaults);
-  $("questionForm").addEventListener("submit", (event) => runAction(() => saveQuestion(event), "正在保存题目..."));
   $("resumeForm").addEventListener("submit", (event) => runAction(() => submitResumeAnalyze(event), "正在分析简历..."));
   $("jobCollectForm").addEventListener("submit", (event) => runAction(() => submitJobCollect(event), "正在导入岗位数据..."));
   $("jobSearchForm").addEventListener("submit", (event) => runAction(() => submitJobSearch(event), "正在搜索岗位..."));
   $("clearJobSearchBtn").addEventListener("click", () => runAction(clearJobSearch, "正在重置岗位搜索..."));
   $("rebuildJobVectorBtn")?.addEventListener("click", () => runAction(rebuildJobVector, "正在重建岗位索引..."));
+  $("toggleQuestionListBtn").addEventListener("click", () => {
+    setQuestionDrawerOpen($("questionDrawer").hidden);
+  });
+  $("closeQuestionListBtn").addEventListener("click", () => {
+    setQuestionDrawerOpen(false);
+  });
+  $("toggleInterviewRecordsBtn").addEventListener("click", () => {
+    setInterviewRecordsExpanded(!state.interviewRecordsExpanded);
+  });
+  $("collapseInterviewRecordsBtn").addEventListener("click", () => {
+    setInterviewRecordsExpanded(false);
+  });
+  $("interviewResult").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-interview-report-id]");
+    if (button) {
+      runAction(() => showInterviewReport(Number(button.dataset.interviewReportId)), "正在加载面试记录...");
+    }
+  });
   $("resumeHistory").addEventListener("click", (event) => {
     const button = event.target.closest("[data-resume-id]");
     if (button) {
@@ -751,28 +699,15 @@ function bindActions() {
       runAction(() => deleteResumeHistory(Number(deleteButton.dataset.deleteResumeId)), "正在删除历史结果...");
     }
   });
-  $("newQuestionType").addEventListener("change", toggleQuestionTypeFields);
-  $("cancelEditBtn").addEventListener("click", () => {
-    resetQuestionForm();
-    setStatus("已取消编辑");
-  });
   $("questionList").addEventListener("click", (event) => {
     const practiceButton = event.target.closest("[data-practice-id]");
-    const editButton = event.target.closest("[data-edit-id]");
-    const deleteButton = event.target.closest("[data-delete-id]");
 
     if (practiceButton) {
       const question = state.questionCache.find((item) => item.id === Number(practiceButton.dataset.practiceId));
-      if (question) useQuestionForPractice(question);
-      return;
-    }
-    if (editButton) {
-      const question = state.questionCache.find((item) => item.id === Number(editButton.dataset.editId));
-      if (question) fillQuestionForm(question);
-      return;
-    }
-    if (deleteButton) {
-      runAction(() => deleteQuestion(Number(deleteButton.dataset.deleteId)), "正在删除题目...");
+      if (question) {
+        useQuestionForPractice(question);
+        setQuestionDrawerOpen(false);
+      }
     }
   });
 }
@@ -780,13 +715,12 @@ function bindActions() {
 function boot() {
   bindTabs();
   bindActions();
-  syncCreateFormDefaults();
   updateFilterSummary(selectedFilters());
   updatePracticeSummary();
   updateInterviewConfigSummary(selectedInterviewConfig());
+  setQuestionDrawerOpen(false);
+  updateInterviewRecordsLayout();
   updateAnswerMeta("practiceAnswer", "practiceAnswerMeta");
-  updateAnswerMeta("interviewAnswer", "interviewAnswerMeta");
-  toggleQuestionTypeFields();
   refreshConfigStatus().catch(() => {
     $("scoringMode").textContent = "评分：状态未知";
   });
@@ -795,6 +729,9 @@ function boot() {
   });
   refreshJobList().catch(() => {
     $("jobList").textContent = "岗位数据加载失败。";
+  });
+  refreshInterviewSessions().catch(() => {
+    $("interviewResult").textContent = "面试记录加载失败。";
   });
   window.setTimeout(() => refreshJobVectorStatus({ showPending: true }), 0);
   runAction(seedQuestions, "正在初始化题库...");

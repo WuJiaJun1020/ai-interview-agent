@@ -59,6 +59,8 @@ backend/requirements.txt
 - python-multipart
 - pypdf
 - python-docx
+- chromadb
+- langgraph
 
 ## 启动方式
 
@@ -113,12 +115,14 @@ uvicorn app.main:app --reload
 - 已新增岗位 HR 面试接口：`POST /api/interview/hr-sessions`、`POST /api/interview/hr-sessions/{session_id}/answer`、`GET /api/interview/hr-sessions/{session_id}/report`。
 - 已新增岗位 HR 面试 SSE 流式接口：`POST /api/interview/hr-sessions/stream` 和 `POST /api/interview/hr-sessions/{session_id}/answer/stream`。
 - 岗位 HR 面试在 `SCORING_MODE=llm` 且配置 Key 后会尝试真实 LLM 生成问题和反馈；失败或 mock 模式下会自动回退本地规则。
+- 已引入 LangGraph 管理岗位 HR 面试策略工作流：后端新增 `backend/app/services/hr_interview_graph.py`，根据简历、岗位 JD、历史问答、当前轮次和回答质量编排开场匹配、项目证据、证据追问、问题解决、能力缺口和收束总结等阶段。
+- 岗位 HR 面试的 LLM prompt 和 mock 规则都已接入 LangGraph 策略上下文；当回答过短、缺少项目场景或缺少量化结果时，下一题会优先追问具体项目、个人动作和结果指标。
 - 已添加 FastAPI 托管的前端单页界面：`GET /`。
 - 前端支持题库初始化、题库练习、岗位 HR 面试和报告展示。
 - 前端已添加题库列表视图，可按筛选条件查看题目并点击“练这题”。
-- 前端已添加新增题目表单，保存后会刷新列表并选中新题练习。
-- 前端已添加题目编辑和删除入口。
-- 前端题库列表已有当前练习题和编辑题目的高亮状态。
+- 题库练习页已优化为答题区 + 大反馈区布局：左侧集中展示当前练习题、选项/作答区和提交按钮，右侧完整展示练习反馈，题库列表改为可展开抽屉。
+- 选择题不再展示评分点，题干和选项共用同一个答题滚动区域；题库列表仅保留“练这题”入口，手动新增、编辑、删除题目的前端入口已移除，后续考虑通过导入方式批量维护题目。
+- 前端题库列表已有当前练习题高亮状态。
 - 练习评分结果已改为结构化展示。
 - 模拟面试页面已有进度条、逐题记录卡片和最终报告卡片。
 - 岗位 HR 面试报告已增强：当前平均分、阶段判断、每题分数等级、用户回答、岗位匹配反馈、最终报告指标和下一步行动。
@@ -129,9 +133,12 @@ uvicorn app.main:app --reload
 - 岗位 HR 面试支持选择题数，并展示本轮简历、岗位和题数配置。
 - 模拟面试页已移除重复的题库模拟功能，仅保留岗位 HR 面试；岗位 HR 面试模式支持选择历史简历和目标岗位后开始面试。
 - 岗位 HR 面试前端已支持问题生成、回答反馈和下一题生成的流式展示；最后一题提交后左侧会保留本轮问题、用户回答和面试官反馈，不再直接替换成结束提示。
-- 模拟面试页已改为对话式面试舱：中间为 AI/用户聊天气泡和底部输入框，右侧为面试进度、面试信息和紧凑面试记录。
-- 前端分类下拉和新增题目的分类候选项会根据题库自动生成。
-- 前端难度下拉和新增题目的难度候选项会根据题库自动生成。
+- 模拟面试页已改为对话式面试舱：中间为 AI/用户聊天气泡和底部输入框，顶部合并简历、岗位、题数和进度信息，避免重复占用空间。
+- 模拟面试聊天区已改为只展示面试官提问和候选人回答；反馈、考察重点、分数和建议不再作为对话气泡展示，而是保存到面试记录中。
+- 岗位 HR 面试已支持历史面试记录查看，后端新增 `GET /api/interview/hr-sessions` 返回最近面试摘要；前端面试记录区默认收起，点击“展开记录”后显示当前/历史完整报告。
+- 岗位 HR 面试已支持消极/拒绝配合回答的提前终止：`SCORING_MODE=llm` 且配置 Key 时优先由 LLM 结构化判断候选人态度，失败或 mock 模式下回退关键词规则；通过线由 `INTERVIEW_PASS_SCORE` 配置，默认 70 分，提前终止的面试不会判定为通过。
+- 前端分类下拉会根据题库自动生成候选项。
+- 前端难度下拉会根据题库自动生成候选项。
 - 前端题库状态会显示全库题量、分类数和难度数。
 - 已准备真实 LLM 评分接入：`SCORING_MODE=mock|llm`，默认 mock；配置 OpenAI API Key 或 DashScope API Key 后可切换到 LLM 评分。
 - 已支持阿里云百炼千问兼容模式：本地 `.env` 可配置 `DASHSCOPE_API_KEY`、`OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1`、`OPENAI_MODEL=qwen3.7-plus`、`LLM_ENABLE_THINKING=true`。
@@ -202,7 +209,11 @@ python -m pytest backend/tests --basetemp .pytest_tmp_single_llm -> 7 passed
 python -m pytest backend/tests --basetemp .pytest_tmp_cleanup -> 7 passed
 conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_hr_interview -> 8 passed
 conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_hr_stream -> 9 passed
+conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_langgraph -> 9 passed
+conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_records2 -> 10 passed
+conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_llm_records_layout3 -> 12 passed
 Browser 验证岗位 HR 面试 1 题流程 -> 问题生成可显示，提交后左侧保留最终反馈，右侧报告可查看
+Browser 验证模拟面试记录区 -> 静态资源版本 `20260609-records-2` 已加载；默认记录区收起且对话区占满宽度，点击“展开记录”后右侧记录栏显示当前面试记录和历史面试入口。
 Chroma 岗位索引重建验证 -> 180 个岗位 / 540 个片段，backend=chroma，collection=job_posts
 DOCX 简历上传接口验证 -> upload 201，analyze 201，匹配 6 个岗位
 GET /                  -> 200
@@ -250,6 +261,7 @@ ai-interview-agent/
       services/
         llm_scoring.py
         hr_interview.py
+        hr_interview_graph.py
         job_importer.py
         resume_analysis.py
         resume_text.py
@@ -294,14 +306,14 @@ ai-interview-agent/
    - LLM 模式下优化提示词，让输出更稳定、更像面试官反馈。
 4. 前端代码结构继续整理：
    - 已完成第一轮拆分：API 请求、状态管理、渲染组件和工具函数已拆成独立 ES Modules。
-   - 后续继续按功能边界拆分练习流、岗位 HR 面试流和题库管理逻辑。
+   - 后续继续按功能边界拆分题库练习流和岗位 HR 面试流逻辑。
    - 当前 UI 已从顶部 tab 堆叠布局改为左侧导航 + 右侧工作区，后续新增页面应沿用“页面内状态、模块内滚动”的布局约定。
 5. 后续中长期计划：
    - 为简历制作/优化增加 txt/md 素材上传和 LLM 生成简历功能。
    - 继续优化岗位知识库推荐质量，后续可将当前哈希 embedding 升级为 DashScope/OpenAI embedding API。
    - 验证千问 3.7 Plus 真实评分质量。
    - 完善 Chroma/RAG 工作流，增加更细粒度的 chunk 策略、重排和检索评估。
-   - 添加 LangGraph 面试工作流。
+   - 继续增强 LangGraph 面试工作流，例如区分追问是否计入题数、记录覆盖矩阵和生成更完整的阶段化最终报告。
    - 完善 README、展示材料和发布检查。
    - MVP 稳定后打标签 `v0.1.0`。
 

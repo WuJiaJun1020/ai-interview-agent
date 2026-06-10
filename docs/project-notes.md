@@ -23,11 +23,11 @@
 - 题库初始化。
 - 题库分类、难度、题型筛选。
 - 问答题、单选题、多选题。
-- 题目新增、编辑、删除。
 - 题库练习与结构化评分反馈。
+- 题库练习页聚焦抽题、作答和结构化评分反馈；右侧优先展示大反馈区，题库列表改为可展开抽屉；前端手动新增、编辑、删除题目的入口已移除，后续预留批量导入维护。
 - 练习答案 SSE 流式评分进度。
 - 岗位 HR 面试会话、逐题答题和最终报告。
-- 岗位 HR 面试：选择已分析简历和岗位知识库岗位后，AI/Mock 面试官根据“岗位 JD + 简历内容”逐题提问、评分和反馈。
+- 岗位 HR 面试：选择已分析简历和岗位知识库岗位后，AI/Mock 面试官根据“岗位 JD + 简历内容”逐题提问、评分和反馈，并由 LangGraph 编排多轮面试策略。
 - mock 评分和 OpenAI 兼容 LLM 评分模式。
 - PDF/DOCX 简历上传分析，生成岗位推荐、技能画像、薄弱项和练习建议。
 - 岗位知识库 JSONL 导入，保存公司、岗位、能力要求、技能和来源 URL。
@@ -59,14 +59,19 @@
 - 已移除重复的题库模拟面试功能，题库相关练习统一保留在“题库练习”页面。
 - 已新增岗位 HR 面试 MVP：后端接口支持创建岗位面试会话、提交回答、查看报告；前端模拟面试页仅保留岗位 HR 面试。
 - 岗位 HR 面试会根据简历正文、目标岗位 JD、岗位技能和历史回答生成下一题；`SCORING_MODE=llm` 且配置 Key 后使用真实 LLM，失败时回退 mock。
+- 已引入 LangGraph 管理岗位 HR 面试策略工作流：后端新增 `backend/app/services/hr_interview_graph.py`，根据简历、岗位 JD、历史问答、当前轮次和回答质量编排开场匹配、项目证据、证据追问、问题解决、能力缺口和收束总结等阶段。
+- 岗位 HR 面试的 LLM prompt 和 mock 规则都已接入 LangGraph 策略上下文；当回答过短、缺少项目场景或缺少量化结果时，下一题会优先追问具体项目、个人动作和结果指标。
 - 岗位 HR 面试已增加 SSE 流式体验：开始面试时流式展示提问，提交回答时流式展示面试官反馈和下一题；本轮最后一题结束后左侧保留问题、回答和反馈。
-- 模拟面试页已改为对话式面试舱：中间为 AI/用户聊天气泡和底部输入框，右侧为面试进度、面试信息和紧凑面试记录。
+- 模拟面试页已改为对话式面试舱：中间为 AI/用户聊天气泡和底部输入框，顶部合并简历、岗位、题数和进度信息，避免重复占用空间。
+- 模拟面试聊天区已改为只展示面试官提问和候选人回答；反馈、考察重点、分数和建议保存到面试记录中，避免把面试官心理评估展示成对话。
+- 岗位 HR 面试已支持历史面试记录查看，后端新增 `GET /api/interview/hr-sessions` 返回最近面试摘要；前端面试记录区默认收起，点击“展开记录”后显示当前/历史完整报告。
+- 岗位 HR 面试已支持消极/拒绝配合回答的提前终止：`SCORING_MODE=llm` 且配置 Key 时优先由 LLM 结构化判断候选人态度，失败或 mock 模式下回退关键词规则；通过线由 `INTERVIEW_PASS_SCORE` 配置，默认 70 分，提前终止的面试不会判定为通过。
 - 岗位 HR 面试数据保存到 `hr_interview_sessions` 和 `hr_interview_answers`。
 - 已完成 mock 评分和 LLM 评分统一入口。
 - 已支持 DashScope/OpenAI 兼容配置，不暴露真实 API Key。
-- 已完成前端单页应用，支持题库管理、练习和岗位 HR 面试。
+- 已完成前端单页应用，支持题库练习、岗位 HR 面试、简历分析和岗位知识库。
 - 已完成工作台布局优化：左侧固定功能导航，产品名位于界面左上角；题库、面试、简历和岗位页面只展示各自相关信息。
-- 已将桌面端页面改为视口内工作区，长列表、题目编辑器、分析结果和岗位数据区在模块内部滚动，避免整页过长。
+- 已将桌面端页面改为视口内工作区，长列表、练习反馈、分析结果和岗位数据区在模块内部滚动，避免整页过长。
 - 已完成前后端目录拆分：后端在 `backend/`，前端静态文件在 `frontend/`。
 - 已合并本地 SQLite 数据库到 `backend/dev.db`，根目录不再保留活动 `dev.db`。
 - 已完成第一轮前端模块拆分：`app.js` 作为入口，API 请求、状态、渲染和工具函数拆成独立 ES Modules。
@@ -145,7 +150,7 @@ ai-interview-agent/
    - LLM 模式下继续优化提示词，让输出更稳定。
 4. 前端代码结构整理：
    - 已完成第一轮 ES Module 拆分。
-   - 后续继续按题库管理、练习流、岗位 HR 面试流拆分业务逻辑。
+   - 后续继续按题库练习流和岗位 HR 面试流拆分业务逻辑。
    - 新增页面继续沿用左侧导航 + 页面内状态 + 模块内滚动的工作台布局。
    - 暂时不引入构建工具，除非静态页面继续膨胀到难以维护。
 5. 中长期计划：
@@ -153,7 +158,7 @@ ai-interview-agent/
    - 继续优化岗位知识库推荐质量，将当前内置哈希 embedding 升级为 DashScope/OpenAI embedding API。
    - 验证千问 3.7 Plus 真实评分质量。
    - 完善 Chroma/RAG 工作流，增加更细粒度的 chunk 策略和检索评估。
-   - 添加 LangGraph 面试工作流。
+   - 继续增强 LangGraph 面试工作流，例如区分追问是否计入题数、记录覆盖矩阵和生成更完整的阶段化最终报告。
    - 完善展示材料和发布检查。
    - MVP 稳定后打标签 `v0.1.0`。
 
@@ -183,7 +188,11 @@ python -m pytest backend/tests --basetemp .pytest_tmp_single_llm -> 7 passed
 python -m pytest backend/tests --basetemp .pytest_tmp_cleanup -> 7 passed
 conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_hr_interview -> 8 passed
 conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_hr_stream -> 9 passed
+conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_langgraph -> 9 passed
+conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_records2 -> 10 passed
+conda run -n ai-interview-agent python -m pytest backend\tests --basetemp .pytest_tmp_llm_records_layout3 -> 12 passed
 Browser 验证岗位 HR 面试 1 题流程 -> 左侧流式展示提问/反馈，最终轮保留本轮反馈，右侧最终报告正常
+Browser 验证模拟面试记录区 -> 静态资源版本 `20260609-records-2` 已加载；默认记录区收起且对话区占满宽度，点击“展开记录”后右侧记录栏显示当前面试记录和历史面试入口。
 Chroma 岗位索引重建验证 -> 180 个岗位 / 540 个片段，backend=chroma，collection=job_posts
 node --check frontend\app.js -> passed
 node --check frontend\api.js -> passed
@@ -216,7 +225,7 @@ GET /static/styles.css -> 200
 - 分类、难度、题型筛选能正常影响题库列表和抽题。
 - 问答题、单选题、多选题都能提交答案。
 - 提交练习答案后先出现评分进度，再显示完整反馈。
-- 新增、编辑、删除题目后，题库列表能同步变化。
+- 题库练习页不再显示手动新增/编辑题目列，题库列表改为抽屉并只保留“练这题”入口；选择题不展示评分点，题干和选项共用一个答题滚动区域。
 - 岗位 HR 面试能按设置题数完成，并显示最终报告。
 - 岗位 HR 面试模式下，先选择一份已分析简历和一个目标岗位，再开始面试；面试题应围绕岗位 JD、简历项目和能力缺口生成。
 - 左侧导航底部能显示评分模式和 LLM 配置状态，但不暴露 API Key。
@@ -247,17 +256,17 @@ GET /static/styles.css -> 200
 
 一句话简介：
 
-AI Interview Agent 是一个基于 FastAPI 的 AI 模拟面试与题库练习系统，支持题库管理、分类练习、岗位 HR 面试、简历分析、答案评分反馈，并预留真实 LLM、RAG 和 LangGraph 扩展能力。
+AI Interview Agent 是一个基于 FastAPI 的 AI 模拟面试与题库练习系统，支持分类练习、岗位 HR 面试、简历分析、答案评分反馈，并已接入 RAG 岗位推荐和 LangGraph 多轮面试策略编排。
 
 简历描述：
 
 ```text
 AI 模拟面试系统 | FastAPI / SQLite / SQLAlchemy / JavaScript / OpenAI API
 
-- 设计并实现一个 AI 面试练习 MVP，支持题库管理、分类练习、岗位 HR 面试、答案评分反馈和面试报告展示。
+- 设计并实现一个 AI 面试练习 MVP，支持题库分类练习、岗位 HR 面试、答案评分反馈和面试报告展示。
 - 使用 FastAPI 构建后端接口，基于 SQLAlchemy 和 SQLite 管理题库、岗位 HR 面试会话和答题记录。
-- 实现题库 CRUD、种子题库初始化、按分类/难度筛选、随机抽题练习，以及基于“简历 + 岗位 JD”的多轮 HR 面试流程。
-- 前端使用原生 HTML/CSS/JavaScript 构建单页应用，支持题目新增/编辑/删除、练习评分展示、岗位 HR 面试进度和最终报告展示。
+- 实现题库 CRUD、种子题库初始化、按分类/难度筛选、随机抽题练习，以及基于“简历 + 岗位 JD”的 LangGraph 多轮 HR 面试流程。
+- 前端使用原生 HTML/CSS/JavaScript 构建单页应用，支持两列式题库练习、练习评分展示、岗位 HR 面试进度和最终报告展示。
 - 设计 mock 评分与 LLM 评分双模式，默认本地 mock 可运行，配置 OpenAI 或 DashScope API Key 后可切换 OpenAI 兼容 LLM 评分，并支持失败自动回退和结构化反馈展示。
 ```
 
@@ -270,3 +279,4 @@ AI 模拟面试系统 | FastAPI / SQLite / SQLAlchemy / JavaScript / OpenAI API
 - LLM 不可用时自动回退 mock，演示更稳定。
 - 练习结果和面试报告展示评分来源、优点、问题、建议和评分点覆盖情况。
 - 练习提交使用 SSE 流式进度，避免 LLM 评分期间页面静默等待。
+- 岗位 HR 面试使用 LangGraph 编排阶段和追问策略，让面试从固定轮询升级为基于回答质量动态推进。

@@ -1,4 +1,4 @@
-import { state } from "./state.js?v=20260609-chat-1";
+import { state } from "./state.js?v=20260610-practice-3";
 import {
   $,
   escapeHtml,
@@ -7,7 +7,8 @@ import {
   reportNextSteps,
   scoreLevel,
   scoreSourceLabel,
-} from "./utils.js?v=20260609-chat-1";
+  isChoiceType,
+} from "./utils.js?v=20260610-practice-3";
 
 export function updateFilterSummary(filters) {
   $("filterSummary").textContent = `${filters.category || "全部分类"} · ${filters.difficulty || "全部难度"}`;
@@ -15,16 +16,11 @@ export function updateFilterSummary(filters) {
 
 export function updateInterviewConfigSummary(config) {
   const summary = [
-    "模式：岗位 HR 面试",
     `简历：${config.resumeLabel || "未选择"}`,
     `岗位：${config.jobLabel || "未选择"}`,
     `题数：${config.total_questions}`,
   ].join(" · ");
-  $("interviewConfigSummary").textContent = summary;
-  $("interviewSummaryDetail").textContent = summary;
-  $("interviewJobInfo").textContent = config.jobLabel || "未选择";
-  $("interviewResumeInfo").textContent = config.resumeLabel || "未选择";
-  $("interviewQuestionTotalInfo").textContent = `${config.total_questions} 题`;
+  $("interviewConfigSummary").textContent = `岗位 HR 面试 · ${summary}`;
 }
 
 export function updatePracticeSummary() {
@@ -39,6 +35,7 @@ export function updatePracticeSummary() {
 }
 
 export function updateAnswerMeta(textareaId, metaId) {
+  if (!$(textareaId) || !$(metaId)) return;
   const value = $(textareaId).value.trim();
   const count = value ? value.length : 0;
   $(metaId).textContent = `${count} 字`;
@@ -67,12 +64,16 @@ export function renderFilterOptions(allQuestions) {
   ].join("");
   $("difficulty").value = difficulties.includes(currentDifficulty) ? currentDifficulty : "";
 
-  $("categoryOptions").innerHTML = categories
-    .map((category) => `<option value="${escapeHtml(category)}"></option>`)
-    .join("");
-  $("difficultyOptions").innerHTML = difficulties
-    .map((difficulty) => `<option value="${escapeHtml(difficulty)}"></option>`)
-    .join("");
+  if ($("categoryOptions")) {
+    $("categoryOptions").innerHTML = categories
+      .map((category) => `<option value="${escapeHtml(category)}"></option>`)
+      .join("");
+  }
+  if ($("difficultyOptions")) {
+    $("difficultyOptions").innerHTML = difficulties
+      .map((difficulty) => `<option value="${escapeHtml(difficulty)}"></option>`)
+      .join("");
+  }
 }
 
 export function renderQuestionList(questions) {
@@ -84,7 +85,7 @@ export function renderQuestionList(questions) {
     list.innerHTML = `
       <div class="empty-state">
         <strong>当前筛选下还没有题目</strong>
-        <p>可以点击“初始化题库”，或在下方新增一道符合这个分类和难度的题目。</p>
+        <p>可以点击“初始化题库”，或调整分类、难度筛选范围。</p>
       </div>
     `;
     return;
@@ -94,15 +95,13 @@ export function renderQuestionList(questions) {
   list.innerHTML = questions
     .map(
       (question) => `
-        <article class="question-item ${question.id === state.practiceQuestion?.id ? "selected" : ""} ${question.id === state.editingQuestionId ? "editing" : ""}">
+        <article class="question-item ${question.id === state.practiceQuestion?.id ? "selected" : ""}">
           <div>
             <div class="question-item-title">${escapeHtml(question.question)}</div>
             <div class="question-item-tags">#${question.id} · ${escapeHtml(question.category)} · ${escapeHtml(question.difficulty)} · ${questionTypeLabel(question.question_type)}</div>
           </div>
           <div class="question-item-actions">
             <button class="small-btn" type="button" data-practice-id="${question.id}">练这题</button>
-            <button class="small-btn secondary-btn" type="button" data-edit-id="${question.id}">编辑</button>
-            <button class="small-btn danger-btn" type="button" data-delete-id="${question.id}">删除</button>
           </div>
         </article>
       `,
@@ -112,6 +111,14 @@ export function renderQuestionList(questions) {
 
 export function renderQuestion(target, question) {
   target.classList.remove("empty");
+  const rubricHtml = isChoiceType(question.question_type)
+    ? ""
+    : `
+      <div class="rubric-box">
+        <strong>评分点</strong>
+        ${renderPointList(question.rubric)}
+      </div>
+    `;
   target.innerHTML = `
     <div class="question-card-meta">
       <span>#${question.id}</span>
@@ -120,16 +127,12 @@ export function renderQuestion(target, question) {
       <span>${questionTypeLabel(question.question_type)}</span>
     </div>
     <p class="question-card-title">${escapeHtml(question.question)}</p>
-    <div class="rubric-box">
-      <strong>评分点</strong>
-      ${renderPointList(question.rubric)}
-    </div>
+    ${rubricHtml}
   `;
 }
 
 export function renderHrQuestion(target, question, context = null) {
   target.classList.remove("empty");
-  const focus = question.focus || [];
   target.innerHTML = `
     ${renderHrIntroMessage(context)}
     ${state.interviewLogs.length ? "" : renderChatMessage({
@@ -139,10 +142,7 @@ export function renderHrQuestion(target, question, context = null) {
     ${renderHrHistoryMessages()}
     ${renderChatMessage({
       role: "ai",
-      body: `
-        <p>${escapeHtml(question.question)}</p>
-        ${focus.length ? `<div class="chat-focus-list"><strong>考察重点</strong>${renderPointList(focus)}</div>` : ""}
-      `,
+      body: `<p>${escapeHtml(question.question)}</p>`,
     })}
   `;
   scrollChatToBottom(target);
@@ -170,18 +170,15 @@ export function renderHrStreamText(target, title, text, context = null) {
 
 export function renderHrTurnSummary(target, turn) {
   target.classList.remove("empty");
+  const endText = turn.terminationReason
+    ? "我们先到这里，本轮面试结束。感谢你的参与。"
+    : "本轮面试到这里结束，感谢你的参与。";
   target.innerHTML = `
     ${renderHrIntroMessage(state.hrInterviewContext)}
     ${renderHrHistoryMessages()}
     ${renderChatMessage({
       role: "ai",
-      body: `
-        <p>本轮岗位 HR 面试已结束。你可以在右侧查看完整报告和每题记录。</p>
-        <div class="chat-focus-list">
-          <strong>最后一题反馈</strong>
-          <p>${escapeHtml(turn.feedback)}</p>
-        </div>
-      `,
+      body: `<p>${escapeHtml(endText)}</p>`,
       time: currentTimeText(),
     })}
   `;
@@ -190,7 +187,6 @@ export function renderHrTurnSummary(target, turn) {
 
 export function renderHrTurnStream(target, turn) {
   target.classList.remove("empty");
-  const feedbackText = turn.feedbackText || "面试官正在阅读你的回答...";
   const nextQuestionHtml = turn.nextQuestionText
     ? renderChatMessage({
         role: "ai",
@@ -198,6 +194,13 @@ export function renderHrTurnStream(target, turn) {
         time: currentTimeText(),
       })
     : "";
+  const waitingHtml = turn.nextQuestionText || turn.isFinished
+    ? ""
+    : renderChatMessage({
+        role: "ai",
+        body: '<div class="typing-indicator" aria-label="面试官正在思考"><span></span><span></span><span></span></div>',
+        time: "思考中",
+      });
 
   target.innerHTML = `
     ${renderHrIntroMessage(turn.context)}
@@ -211,11 +214,7 @@ export function renderHrTurnStream(target, turn) {
       body: `<p>${escapeHtml(turn.answer || "")}</p>`,
       time: currentTimeText(),
     })}
-    ${renderChatMessage({
-      role: "ai",
-      body: `<p>${escapeHtml(feedbackText)}</p>${turn.feedbackText ? "" : '<div class="typing-indicator compact"><span></span><span></span><span></span></div>'}`,
-      time: "面试官反馈",
-    })}
+    ${waitingHtml}
     ${nextQuestionHtml}
   `;
   scrollChatToBottom(target);
@@ -248,17 +247,6 @@ function renderHrHistoryMessages() {
         renderChatMessage({
           role: "user",
           body: `<p>${escapeHtml(turn.answer || "")}</p>`,
-        }),
-        renderChatMessage({
-          role: "ai",
-          body: `
-            <p>${escapeHtml(turn.feedback || "")}</p>
-            <div class="chat-score-line">
-              <span>${turn.score} 分</span>
-              <span>${escapeHtml(scoreLevel(turn.score).label)}</span>
-            </div>
-          `,
-          time: "面试官反馈",
         }),
       ].join(""),
     )
@@ -369,15 +357,31 @@ export function updateInterviewProgress(answeredCount, totalQuestions) {
   $("interviewProgress").textContent = isFinished ? "已完成" : `第 ${currentStep}/${totalQuestions} 题`;
   const percent = totalQuestions ? Math.round((currentStep / totalQuestions) * 100) : 0;
   $("interviewProgressBar").style.width = `${percent}%`;
-  $("interviewSummary").textContent = isFinished ? "已完成" : `${currentStep} / ${totalQuestions}`;
+}
+
+export function updateInterviewRecordsLayout() {
+  const view = $("interviewView");
+  const toggleButton = $("toggleInterviewRecordsBtn");
+  const collapseButton = $("collapseInterviewRecordsBtn");
+  if (!view || !toggleButton) return;
+
+  view.classList.toggle("records-expanded", state.interviewRecordsExpanded);
+  toggleButton.textContent = state.interviewRecordsExpanded ? "收起记录" : "展开记录";
+  toggleButton.setAttribute("aria-pressed", String(state.interviewRecordsExpanded));
+  if (collapseButton) collapseButton.hidden = !state.interviewRecordsExpanded;
 }
 
 export function renderInterviewLogs(report = null) {
   const target = $("interviewResult");
   target.classList.remove("empty");
-  const currentAverage = report ? report.average_score : averageInterviewScore();
+  state.selectedInterviewReport = report || state.selectedInterviewReport;
+  const visibleReport = report || state.selectedInterviewReport;
+  const currentItems = visibleReport
+    ? visibleReport.answers.map((item, index) => ({ ...item, index: index + 1 }))
+    : state.interviewLogs;
+  const currentAverage = visibleReport ? visibleReport.average_score : averageInterviewScore();
   const currentLevel = scoreLevel(currentAverage);
-  const summaryHtml = state.interviewLogs.length
+  const summaryHtml = currentItems.length
     ? `
       <section class="interview-summary-card compact-record-summary">
         <div>
@@ -386,7 +390,7 @@ export function renderInterviewLogs(report = null) {
         </div>
         <div>
           <span class="overview-label">已完成</span>
-          <strong>${state.interviewLogs.length} 题</strong>
+          <strong>${visibleReport ? `${visibleReport.answered_count}/${visibleReport.total_questions}` : `${currentItems.length} 题`}</strong>
         </div>
         <div>
           <span class="overview-label">阶段判断</span>
@@ -395,12 +399,33 @@ export function renderInterviewLogs(report = null) {
       </section>
     `
     : "";
-  const logsHtml = state.interviewLogs
+  const logsHtml = currentItems
     .map((item) => renderInterviewLogItem(item))
     .join("");
 
-  const reportHtml = report ? renderFinalReport(report) : "";
-  target.innerHTML = `<div class="interview-log">${summaryHtml}${logsHtml || '<p class="meta">暂无面试记录，面试过程中会自动保存。</p>'}${reportHtml}</div>`;
+  const reportHtml = visibleReport ? renderFinalReport(visibleReport) : "";
+  const title = visibleReport ? `面试 #${visibleReport.session_id} 记录` : "当前面试记录";
+  target.innerHTML = `
+    <div class="interview-record-shell">
+      <section class="interview-record-main">
+        <div class="record-section-heading">
+          <h4>${escapeHtml(title)}</h4>
+          ${visibleReport ? renderInterviewOutcome(visibleReport) : ""}
+        </div>
+        ${reportHtml}
+        ${summaryHtml}
+        <div class="interview-log">
+          ${logsHtml || '<p class="meta">暂无面试记录，面试过程中会自动保存。</p>'}
+        </div>
+      </section>
+      ${renderInterviewHistoryList(state.hrInterviewSessions)}
+    </div>
+  `;
+}
+
+export function renderInterviewSessions(sessions = []) {
+  state.hrInterviewSessions = sessions;
+  renderInterviewLogs(state.selectedInterviewReport);
 }
 
 export function renderResumeResult(payload) {
@@ -737,20 +762,43 @@ function averageInterviewScore() {
 function renderInterviewLogItem(item) {
   const level = scoreLevel(item.score);
   const source = scoreSourceLabel(item.source);
+  const focus = item.focus || [];
   return `
     <article class="interview-record-item">
       <div class="interview-record-item-header">
         <strong>第 ${item.index} 题</strong>
-        <span class="interview-score">${item.score} 分</span>
+        <div class="interview-score-group">
+          <span class="source-badge ${source.className}">${source.label}</span>
+          <span class="score-badge ${level.className}">${level.label}</span>
+          <span class="interview-score">${item.score} 分</span>
+        </div>
       </div>
-      <p>${escapeHtml(item.question || "岗位 HR 面试问题")}</p>
-      <div class="interview-record-tags">
-        <span class="source-badge ${source.className}">${source.label}</span>
-        <span class="score-badge ${level.className}">${level.label}</span>
+      <div class="record-qa-block">
+        <span>面试官</span>
+        <p>${escapeHtml(item.question || "岗位 HR 面试问题")}</p>
       </div>
-      <details class="answer-details">
-        <summary>查看反馈</summary>
+      <div class="record-qa-block candidate-answer">
+        <span>候选人</span>
+        <p>${escapeHtml(item.answer || "")}</p>
+      </div>
+      ${focus.length ? `<div class="record-focus"><strong>考察重点</strong>${renderPillList(focus)}</div>` : ""}
+      <details class="answer-details" open>
+        <summary>面试记录与反馈</summary>
         <p>${escapeHtml(item.feedback)}</p>
+        <div class="record-feedback-grid">
+          <section>
+            <strong>优点</strong>
+            ${renderPointList(item.strengths || [])}
+          </section>
+          <section>
+            <strong>问题</strong>
+            ${renderPointList(item.weaknesses || [])}
+          </section>
+          <section>
+            <strong>建议</strong>
+            ${renderPointList(item.suggestions || [])}
+          </section>
+        </div>
       </details>
     </article>
   `;
@@ -758,11 +806,15 @@ function renderInterviewLogItem(item) {
 
 function renderFinalReport(report) {
   const level = scoreLevel(report.average_score);
+  const outcome = interviewOutcome(report);
   return `
     <article class="interview-card report-card" id="finalInterviewReport">
       <div class="interview-card-header">
         <strong>最终报告</strong>
-        <span class="score-badge ${level.className}">${level.label}</span>
+        <div class="interview-score-group">
+          <span class="score-badge ${outcome.className}">${outcome.label}</span>
+          <span class="score-badge ${level.className}">${level.label}</span>
+        </div>
       </div>
       <div class="report-metrics">
         <div>
@@ -777,7 +829,12 @@ function renderFinalReport(report) {
           <span class="overview-label">完成状态</span>
           <strong>${report.is_finished ? "已完成" : "进行中"}</strong>
         </div>
+        <div>
+          <span class="overview-label">通过线</span>
+          <strong>${report.pass_score} 分</strong>
+        </div>
       </div>
+      ${report.termination_reason ? `<div class="termination-box"><strong>提前终止</strong><p>${escapeHtml(report.termination_reason)}</p></div>` : ""}
       <div class="recommendation-box">
         <strong>复习建议</strong>
         <p>${escapeHtml(report.recommendation)}</p>
@@ -787,6 +844,49 @@ function renderFinalReport(report) {
         ${renderPointList(reportNextSteps(report.average_score))}
       </div>
     </article>
+  `;
+}
+
+function renderInterviewOutcome(report) {
+  if (!report || report.passed === null || report.passed === undefined) return "";
+  const outcome = interviewOutcome(report);
+  return `<span class="score-badge ${outcome.className}">${outcome.label}</span>`;
+}
+
+function interviewOutcome(report) {
+  if (report.termination_reason) return { label: "提前终止", className: "level-weak" };
+  if (report.passed === true) return { label: "面试通过，可录取", className: "level-strong" };
+  if (report.passed === false) return { label: "未通过", className: "level-weak" };
+  return { label: "评估中", className: "level-ok" };
+}
+
+function renderInterviewHistoryList(sessions = []) {
+  const items = sessions
+    .map((item) => {
+      const outcome = interviewOutcome(item);
+      const title = `${item.context.company} · ${item.context.job_title}`;
+      return `
+        <article class="interview-history-item">
+          <div>
+            <strong>${escapeHtml(title)}</strong>
+            <p>${escapeHtml(item.context.resume_filename)} · ${item.answered_count}/${item.total_questions} 题 · ${item.average_score} 分</p>
+          </div>
+          <span class="score-badge ${outcome.className}">${outcome.label}</span>
+          <button class="ghost-btn small-btn" type="button" data-interview-report-id="${item.session_id}">查看</button>
+        </article>
+      `;
+    })
+    .join("");
+  return `
+    <section class="interview-history-panel">
+      <div class="record-section-heading">
+        <h4>历史面试</h4>
+        <span>${sessions.length} 场</span>
+      </div>
+      <div class="interview-history-list">
+        ${items || '<p class="meta">暂无历史面试。完成面试后会保存在这里。</p>'}
+      </div>
+    </section>
   `;
 }
 

@@ -1,13 +1,13 @@
 # AI Interview Agent
 
-AI Interview Agent 是一个 AI 模拟面试与题库练习 MVP。当前版本已经可以在本地完成题库管理、题库练习、岗位 HR 面试、简历分析、岗位知识库、mock 评分和 LLM 评分配置准备。
+AI Interview Agent 是一个 AI 模拟面试与题库练习 MVP。当前版本已经可以在本地完成题库练习、岗位 HR 面试、简历分析、岗位知识库、mock 评分、LLM 评分配置和 LangGraph 面试策略编排。
 
 ## 当前功能
 
 - 题库初始化：内置 Python、FastAPI、MySQL、Redis、HTTP、Git、Linux、Docker、算法、系统设计等 10 类题库，共 69 道，覆盖初级、中级、高级，并包含问答题、单选题和多选题。
-- 题库管理：在网页中新增、编辑、删除题目。
-- 题库练习：按分类、难度和题型练习题目，支持问答题、单选题和多选题；提交答案后会先显示评分进度，再展示评分来源、优点、问题、建议、参考答案和评分点覆盖情况。
-- 模拟面试：选择已分析简历、目标岗位和题数，让 AI/Mock 面试官根据“岗位 JD + 简历内容”逐题提问；界面采用对话式面试舱，支持流式问题、流式反馈和最终报告。
+- 题库练习：按分类、难度和题型练习题目，支持问答题、单选题和多选题；当前练习题与作答区集中展示，题库列表改为可展开抽屉，右侧优先展示练习反馈；选择题不展示评分点，提交答案后会显示评分来源、优点、问题、建议、参考答案和评分点覆盖情况。
+- 题库维护：前端已移除手动新增、编辑、删除入口，后续预留通过导入方式批量维护题目。
+- 模拟面试：选择已分析简历、目标岗位和题数，让 AI/Mock 面试官根据“岗位 JD + 简历内容”逐题提问；LangGraph 会编排开场匹配、项目证据、追问补证、能力缺口和收束总结等策略阶段。聊天区只展示面试官与候选人的对话，反馈、考察重点、分数和录取结论保存在可展开的面试记录中，支持后续查看历史面试；LLM 模式下会优先由模型判断拒答/消极配合并提前终止面试。
 - 简历分析：上传 PDF/DOCX 简历，系统分阶段提取文本、结合岗位知识库生成推荐岗位、技能画像、薄弱项和练习建议，并保存历史结果。
 - 岗位知识库：上传已采集好的 JSONL 岗位数据，保存岗位能力要求、技能和来源链接，并按内容哈希去重。
 - 岗位推荐索引：支持 Chroma 本地持久化岗位向量库，简历分析会先召回 Top 8 真实 JD、压缩候选上下文，再在同一次 LLM 分析里结合简历输出 Top 3；知识库不足、Chroma 不可用或 LLM 不可用时自动回退规则推荐/自由推荐。
@@ -17,7 +17,7 @@ AI Interview Agent 是一个 AI 模拟面试与题库练习 MVP。当前版本�
 
 ## 技术栈
 
-- 后端：FastAPI、SQLAlchemy、SQLite、Pydantic Settings、pypdf、python-docx、python-multipart、Chroma
+- 后端：FastAPI、SQLAlchemy、SQLite、Pydantic Settings、pypdf、python-docx、python-multipart、Chroma、LangGraph
 - 前端：FastAPI 托管的原生 HTML/CSS/JavaScript 单页应用，使用 ES Modules 拆分代码
 - 评分：mock 规则评分，预留 OpenAI 兼容 Chat Completions 评分
 - 环境：Conda
@@ -98,6 +98,7 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=gpt-4o-mini
 LLM_ENABLE_THINKING=false
 LLM_TIMEOUT_SECONDS=120
+INTERVIEW_PASS_SCORE=70
 ```
 
 阿里云百炼千问兼容模式示例：
@@ -109,6 +110,7 @@ OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 OPENAI_MODEL=qwen3.7-plus
 LLM_ENABLE_THINKING=true
 LLM_TIMEOUT_SECONDS=120
+INTERVIEW_PASS_SCORE=70
 ```
 
 重启后端后，左侧导航底部的评分状态会显示 LLM 配置情况。若 LLM 调用失败或超过 `LLM_TIMEOUT_SECONDS`，系统会自动回退 mock，避免影响本地演示。
@@ -162,7 +164,6 @@ http://127.0.0.1:8000/docs
 - 继续优化岗位知识库推荐质量，后续可将当前哈希 embedding 升级为 DashScope/OpenAI embedding API。
 - 高质量扩充题库，补充更真实的工程题、排错题、设计题、单选题和多选题。
 - 增强练习反馈，增加下一步练习建议。
-- 继续按题库管理、练习流、岗位 HR 面试流拆分前端业务逻辑。
+- 继续按题库练习流、岗位 HR 面试流拆分前端业务逻辑。
 - 完善 Chroma/RAG 工作流，增加更细粒度的 chunk 策略和检索评估。
-- 引入 LangGraph 管理更完整的多轮面试流程。
 - MVP 稳定后打标签 `v0.1.0`。

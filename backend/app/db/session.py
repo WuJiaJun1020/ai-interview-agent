@@ -36,6 +36,8 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _migrate_sqlite_questions()
     _migrate_sqlite_resume_analyses()
+    _migrate_sqlite_hr_interview_answers()
+    _migrate_sqlite_hr_interview_sessions()
 
 
 def _migrate_sqlite_questions() -> None:
@@ -77,3 +79,35 @@ def _migrate_sqlite_resume_analyses() -> None:
 
     with engine.begin() as connection:
         connection.execute(text("ALTER TABLE resume_analyses ADD COLUMN job_recommendations JSON DEFAULT '{}'"))
+
+
+def _migrate_sqlite_hr_interview_answers() -> None:
+    if not settings.database_url.startswith("sqlite"):
+        return
+
+    inspector = inspect(engine)
+    if "hr_interview_answers" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("hr_interview_answers")}
+    if "focus" in columns:
+        return
+
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE hr_interview_answers ADD COLUMN focus JSON DEFAULT '[]'"))
+
+
+def _migrate_sqlite_hr_interview_sessions() -> None:
+    if not settings.database_url.startswith("sqlite"):
+        return
+
+    inspector = inspect(engine)
+    if "hr_interview_sessions" not in inspector.get_table_names():
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("hr_interview_sessions")}
+    if "termination_reason" in columns:
+        return
+
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE hr_interview_sessions ADD COLUMN termination_reason TEXT"))

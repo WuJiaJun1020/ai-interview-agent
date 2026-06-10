@@ -227,7 +227,9 @@ h2 {
 }
 
 .practice-view {
+  gap: 10px;
   grid-template-rows: auto auto auto minmax(0, 1fr);
+  position: relative;
 }
 
 .resume-view,
@@ -291,6 +293,12 @@ h2 {
   padding: 12px 14px;
 }
 
+.practice-view .overview-card {
+  gap: 3px;
+  min-height: 54px;
+  padding: 8px 12px;
+}
+
 .overview-card strong {
   font-size: 17px;
   line-height: 1.3;
@@ -308,6 +316,10 @@ h2 {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.practice-view .overview-card p {
+  display: none;
 }
 
 .overview-label {
@@ -331,6 +343,18 @@ h2 {
   gap: 12px;
   grid-template-columns: repeat(2, minmax(160px, 280px));
   justify-content: start;
+}
+
+.practice-controls {
+  align-items: center;
+  grid-template-columns: repeat(2, minmax(220px, 340px));
+  padding: 10px 14px;
+}
+
+.practice-controls .field {
+  align-items: center;
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 .field {
@@ -385,11 +409,31 @@ textarea {
 .practice-board {
   display: grid;
   gap: 14px;
-  grid-template-columns: minmax(300px, 0.95fr) minmax(300px, 1fr) minmax(280px, 0.85fr);
+  grid-template-columns: minmax(560px, 1.08fr) minmax(460px, 0.92fr);
   min-height: 0;
 }
 
-.practice-session-stack,
+.question-drawer {
+  bottom: 0;
+  box-shadow: -18px 0 40px rgba(15, 23, 42, 0.12);
+  display: flex;
+  max-width: 560px;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: min(520px, 42vw);
+  z-index: 20;
+}
+
+.question-drawer[hidden] {
+  display: none;
+}
+
+.question-drawer .question-list-panel {
+  flex: 1;
+}
+
+.practice-side-stack,
 .two-column-board,
 .interview-board {
   display: grid;
@@ -397,14 +441,13 @@ textarea {
   min-height: 0;
 }
 
-.practice-session-stack {
-  grid-template-rows: minmax(0, 1fr) minmax(220px, 0.82fr);
+.practice-side-stack {
+  grid-template-rows: minmax(0, 1fr) minmax(230px, 0.56fr);
 }
 
 .practice-session-panel,
 .practice-feedback-panel,
 .question-list-panel,
-.question-editor-panel,
 .interview-main-panel,
 .interview-result-panel,
 .resume-input-panel,
@@ -416,8 +459,18 @@ textarea {
   overflow: hidden;
 }
 
-.question-editor-panel {
-  overflow-y: auto;
+.practice-session-panel {
+  display: grid;
+  gap: 6px;
+  grid-template-rows: auto minmax(220px, 1fr) auto auto auto;
+}
+
+.practice-session-panel.choice-mode {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.practice-session-panel .panel-header {
+  margin-bottom: 0;
 }
 
 .question-list,
@@ -438,10 +491,6 @@ textarea {
 .resume-form {
   display: grid;
   gap: 12px;
-}
-
-.question-editor-panel .question-form {
-  padding-right: 2px;
 }
 
 .resume-history-panel {
@@ -479,7 +528,7 @@ textarea {
   margin-bottom: 12px;
 }
 
-.question-box,
+.practice-answer-stage,
 .result-box {
   background: #f8fafc;
   border: 1px solid #dbe3ea;
@@ -490,11 +539,36 @@ textarea {
   white-space: pre-wrap;
 }
 
+.practice-answer-stage {
+  display: grid;
+  gap: 10px;
+  overflow: auto;
+}
+
 .question-box {
   display: grid;
   flex: 1;
-  gap: 10px;
-  overflow: auto;
+  align-content: start;
+  gap: 8px;
+  min-height: 0;
+  overflow: visible;
+}
+
+.practice-session-panel .question-box {
+  flex: initial;
+  min-height: 0;
+  padding: 0;
+}
+
+.practice-session-panel.choice-mode .question-box {
+  min-height: 0;
+}
+
+.practice-session-panel textarea {
+  height: 92px;
+  margin: 0;
+  min-height: 92px;
+  resize: none;
 }
 
 .result-box {
@@ -504,7 +578,7 @@ textarea {
 .question-card-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .question-card-meta span {
@@ -512,28 +586,37 @@ textarea {
   border: 1px solid #dbe3ea;
   border-radius: 999px;
   color: #475569;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  padding: 4px 9px;
+  line-height: 1.2;
+  padding: 3px 8px;
 }
 
 .question-card-title {
   color: #0f172a;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 800;
-  line-height: 1.6;
+  line-height: 1.5;
+  margin: 0;
 }
 
 .rubric-box {
   background: white;
   border: 1px solid #dbe3ea;
   border-radius: 6px;
-  padding: 10px;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 8px 10px;
 }
 
 .rubric-box ul {
-  margin: 8px 0 0;
-  padding-left: 18px;
+  margin: 6px 0 0;
+  padding-left: 16px;
+}
+
+.rubric-box li + li {
+  margin-top: 3px;
 }
 
 .conversation-block {
@@ -572,7 +655,17 @@ textarea {
 .choice-answer-box {
   display: grid;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 0;
+  min-height: 0;
+  padding-right: 3px;
+}
+
+.practice-session-panel.choice-mode .answer-meta {
+  display: none;
+}
+
+.practice-session-panel.choice-mode .practice-answer-stage {
+  align-content: start;
 }
 
 .choice-answer-option {
@@ -653,13 +746,20 @@ textarea {
 }
 
 .interview-topbar {
-  align-items: center;
+  align-items: stretch;
   border-bottom: 1px solid #dbe3ea;
   display: flex;
-  gap: 18px;
+  gap: 16px;
   justify-content: space-between;
-  min-height: 72px;
-  padding: 14px 18px 14px 20px;
+  min-height: 108px;
+  padding: 12px 18px 12px 20px;
+}
+
+.interview-topbar-main {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
 }
 
 .interview-topbar h2 {
@@ -677,11 +777,41 @@ textarea {
   -webkit-line-clamp: 1;
 }
 
+.topbar-config-strip {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 96px minmax(0, 1fr);
+  max-width: 980px;
+  min-width: 0;
+}
+
+.topbar-field-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(190px, 0.9fr) minmax(240px, 1.1fr);
+  min-width: 0;
+}
+
+.compact-field {
+  gap: 4px;
+  min-width: 0;
+}
+
+.compact-field label {
+  font-size: 12px;
+}
+
+.compact-field select {
+  height: 34px;
+}
+
 .interview-topbar-actions {
-  align-items: center;
+  align-items: end;
   display: flex;
   flex: 0 0 auto;
   gap: 12px;
+  justify-content: flex-end;
 }
 
 .interview-time {
@@ -691,42 +821,35 @@ textarea {
   white-space: nowrap;
 }
 
+.topbar-progress {
+  display: grid;
+  gap: 7px;
+  justify-items: end;
+  min-width: 150px;
+}
+
+.compact-progress {
+  margin: 0;
+  width: 150px;
+}
+
 .interview-chat-layout {
   display: grid;
-  grid-template-columns: minmax(520px, 1fr) 300px;
+  grid-template-columns: minmax(520px, 1fr);
   min-height: 0;
+}
+
+.interview-view.records-expanded .interview-chat-layout {
+  grid-template-columns: minmax(520px, 1fr) minmax(420px, 0.72fr);
 }
 
 .chat-stage {
   background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
   display: grid;
   gap: 0;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   min-height: 0;
-  padding: 16px 18px 12px;
-}
-
-.chat-config-strip {
-  background: #f8fafc;
-  border: 1px solid #dbe3ea;
-  border-radius: 8px;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: 96px minmax(0, 1fr);
-  margin-bottom: 10px;
-  padding: 8px 10px;
-}
-
-.chat-config-strip .field-row {
-  grid-column: auto;
-}
-
-.chat-config-strip label {
-  font-size: 12px;
-}
-
-.chat-config-strip select {
-  height: 34px;
+  padding: 14px 18px 12px;
 }
 
 .chat-transcript {
@@ -749,6 +872,10 @@ textarea {
 .chat-message-content {
   display: grid;
   gap: 6px;
+  max-width: min(820px, 76%);
+}
+
+.interview-view.records-expanded .chat-message-content {
   max-width: min(680px, 78%);
 }
 
@@ -905,19 +1032,6 @@ textarea {
   justify-content: space-between;
 }
 
-.chat-helper-actions {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.chat-helper-actions span {
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 800;
-}
-
 .send-answer-btn {
   border-radius: 999px;
   min-height: 40px;
@@ -934,11 +1048,15 @@ textarea {
 .interview-side-panel {
   background: #f8fafc;
   border-left: 1px solid #e2e8f0;
-  display: grid;
+  display: none;
   gap: 14px;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   padding: 16px 14px;
+}
+
+.interview-view.records-expanded .interview-side-panel {
+  display: grid;
 }
 
 .side-card {
@@ -993,13 +1111,23 @@ textarea {
 }
 
 .interview-record-card {
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
 .interview-record {
   color: #64748b;
+  flex: 1;
   min-height: 0;
   overflow: auto;
+}
+
+.record-card-header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
 }
 
 .two-column-board {
@@ -1024,11 +1152,6 @@ textarea {
 .question-item.selected {
   background: #eff6ff;
   border-color: #2563eb;
-}
-
-.question-item.editing {
-  background: #fff7ed;
-  border-color: #f97316;
 }
 
 .question-item-actions {
@@ -1207,7 +1330,37 @@ textarea {
 
 .interview-log {
   display: grid;
+  gap: 12px;
+}
+
+.interview-record-shell {
+  display: grid;
+  gap: 14px;
+}
+
+.interview-record-main,
+.interview-history-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.record-section-heading {
+  align-items: center;
+  display: flex;
   gap: 10px;
+  justify-content: space-between;
+}
+
+.record-section-heading h4 {
+  color: #0f172a;
+  font-size: 15px;
+  margin: 0;
+}
+
+.record-section-heading span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .compact-record-summary {
@@ -1256,14 +1409,78 @@ textarea {
   justify-content: space-between;
 }
 
-.interview-record-item p {
+.record-qa-block {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.record-qa-block span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.record-qa-block p {
   color: #475569;
-  display: -webkit-box;
   font-size: 13px;
   line-height: 1.55;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  margin: 0;
+}
+
+.candidate-answer {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.record-focus {
+  display: grid;
+  gap: 6px;
+}
+
+.record-feedback-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 10px;
+}
+
+.record-feedback-grid section {
+  background: white;
+  border: 1px solid #dbe3ea;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.record-feedback-grid ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.interview-history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.interview-history-item {
+  align-items: center;
+  background: white;
+  border: 1px solid #dbe3ea;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 10px;
+}
+
+.interview-history-item p {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 4px 0 0;
 }
 
 .interview-record-tags {
@@ -1335,6 +1552,23 @@ textarea {
   color: #475569;
   line-height: 1.7;
   margin-top: 8px;
+}
+
+.termination-box {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  color: #9a3412;
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px;
+}
+
+.termination-box p {
+  color: #7c2d12;
+  line-height: 1.65;
+  margin: 0;
 }
 
 .report-card {
@@ -1631,8 +1865,8 @@ textarea {
     grid-template-columns: minmax(360px, 1fr) minmax(360px, 1fr);
   }
 
-  .question-editor-panel {
-    grid-column: 1 / -1;
+  .question-drawer {
+    width: min(480px, 58vw);
   }
 }
 
@@ -1662,18 +1896,21 @@ textarea {
   }
 
   .view-header,
-  .panel-header {
+  .panel-header,
+  .interview-topbar {
     align-items: stretch;
     flex-direction: column;
   }
 
   .view-header-actions,
-  .inline-actions {
+  .inline-actions,
+  .interview-topbar-actions {
     justify-content: flex-start;
   }
 
   .page-summary-grid,
-  .chat-config-strip,
+  .topbar-config-strip,
+  .topbar-field-row,
   .interview-chat-layout,
   .interview-summary-grid,
   .practice-board,
@@ -1686,17 +1923,25 @@ textarea {
   .field-row,
   .interview-config,
   .interview-summary-card,
+  .record-feedback-grid,
+  .interview-history-item,
   .job-search-form,
   .resume-grid,
   .report-metrics {
     grid-template-columns: 1fr;
   }
 
-  .practice-session-stack {
+  .practice-side-stack {
     grid-template-rows: auto auto;
   }
 
-  .question-box,
+  .question-drawer {
+    left: 0;
+    max-width: none;
+    width: 100%;
+  }
+
+  .practice-answer-stage,
   .result-box,
   .question-list,
   .resume-history,
@@ -1715,5 +1960,18 @@ textarea {
   .resume-history-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .topbar-progress {
+    justify-items: start;
+  }
+
+  .compact-progress {
+    width: 100%;
+  }
+
+  .chat-message-content,
+  .interview-view.records-expanded .chat-message-content {
+    max-width: 86%;
   }
 }
